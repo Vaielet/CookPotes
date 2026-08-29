@@ -45,7 +45,7 @@ Bienvenue ! Cette application te permet de :
   la semaine (ou le mois, soyons foufolles). Indique le
   nombre de personnes pour chaque recette, un clic et le tour est joué ! Tu reçois 
   ta liste de courses et un carnet avec les recettes sélectionnées en PDF.
-- **🍳 Ajouter une recette** : partage tes recettes coup de coeur ou celles de ton grand-père. **Réservé aux comptes avec le statut éditeur** —
+- **🍳 Ajouter une recette** : partage tes recettes coup de coeur ou celles de ton grand-père. **Réservé aux comptes avec le statut éditeur·rice** —
   connectez-vous via le menu à gauche.
 
 Utilise le menu à gauche pour naviguer entre les pages.
