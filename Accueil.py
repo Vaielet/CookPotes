@@ -64,9 +64,6 @@ st.markdown("Utilise les deux boutons ci-dessus ou le menu à gauche pour navigu
 
 recipes = db.get_all_recipes()
 
-col1, col2 = st.columns(2)
-col1.metric("Recettes enregistrées", len(recipes))
-
 recent = db.get_recent_recipes(limit=5)
 if recent:
     st.subheader("🆕 Dernières recettes ajoutées")
