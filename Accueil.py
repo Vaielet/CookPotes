@@ -41,7 +41,7 @@ st.markdown(
     """
 Bienvenue ! Cette application te permet de :
 
-- **🛒 Générer ta liste de courses** : sélectionnes les recettes pour 
+- **🛒 Générer ta liste de courses** : sélectionne les recettes pour 
   la semaine (ou le mois, soyons foufolles). Indique le
   nombre de personnes pour chaque recette, un clic et le tour est joué ! Tu reçois 
   ta liste de courses et un carnet avec les recettes sélectionnées en PDF.
