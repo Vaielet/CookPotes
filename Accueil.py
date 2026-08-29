@@ -40,21 +40,22 @@ common.header_logo()
 st.markdown(
     """
 Bienvenue ! Cette application te permet de :
+    """
+)
 
 col1, col2 = st.columns(2)
 with col1:
-    **🛒 Générer ta liste de courses** : sélectionne les recettes pour 
+    st.markdown("**🛒 Générer ta liste de courses** : sélectionne les recettes pour 
   la semaine (ou le mois, soyons foufolles). Indique le
   nombre de personnes pour chaque recette, un clic et le tour est joué ! Tu reçois 
-  ta liste de courses et un carnet avec les recettes sélectionnées en PDF.
+  ta liste de courses et un carnet avec les recettes sélectionnées en PDF.")
 
 with col2:
-    **🍳 Ajouter une recette** : partage tes recettes coup de coeur ou celles de ton grand-père. **Réservé aux comptes avec le statut éditeur·rice** —
-  connectez-vous via le menu à gauche.
+    st.markdown("**🍳 Ajouter une recette** : partage tes recettes coup de coeur ou celles de ton grand-père. **Réservé aux comptes avec le statut éditeur·rice** —
+  connectez-vous via le menu à gauche.")
 
-Utilise le menu à gauche pour naviguer entre les pages.
-"""
-)
+st.markdown("Utilise le menu à gauche pour naviguer entre les pages.")
+
 
 recipes = db.get_all_recipes()
 
