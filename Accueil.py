@@ -45,7 +45,7 @@ Bienvenue ! Cette application te permet de :
 
 col1, col2 = st.columns(2)
 with col1:
-    if st.button("Générer ma liste"):
+    if st.button("🛒 Générer ma liste"):
         st.switch_page("pages/2_🛒_Générer_ma_liste.py")
     st.markdown("Sélectionne les recettes pour " 
     "la semaine (ou le mois, soyons foufolles). Indique le "
