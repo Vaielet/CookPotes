@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import streamlit as st
 import base64
+import html
 import io
 import platform
 import subprocess
@@ -328,6 +329,32 @@ def get_recipe_image(name: str, image_bytes: bytes | None) -> Image.Image:
     return generate_placeholder_image(name)
 
 
+def prepare_image_for_storage(
+    image_bytes: bytes,
+    max_dimension: int = 1600,
+    quality: int = 85,
+) -> tuple[bytes, str]:
+    """
+    Prépare une photo pour l'enregistrement en base : applique l'orientation
+    EXIF, réduit l'image si elle dépasse `max_dimension` px de large ou de
+    haut (proportions conservées), puis la réencode en JPEG compressé.
+
+    Les photos prises directement au smartphone pèsent souvent plusieurs Mo
+    et dépassent largement la définition utile pour un affichage à l'écran
+    ou une impression A4 — les stocker telles quelles alourdit inutilement
+    la base de données et ralentit le chargement des pages. À appeler avant
+    tout enregistrement d'une photo de recette.
+    """
+    img = Image.open(io.BytesIO(image_bytes))
+    img = ImageOps.exif_transpose(img)
+    img = img.convert("RGB")
+    img.thumbnail((max_dimension, max_dimension), Image.LANCZOS)
+
+    buffer = io.BytesIO()
+    img.save(buffer, format="JPEG", quality=quality, optimize=True)
+    return buffer.getvalue(), "image/jpeg"
+
+
 def fit_image_to_canvas(
     img: Image.Image,
     size: tuple[int, int] = (400, 260),
@@ -366,7 +393,7 @@ def image_to_data_uri(img: Image.Image, format: str = "JPEG", quality: int = 85)
 RECIPE_CARD_IMAGE_SIZE = (400, 260)
 
 # Fond orange uni de l'étiquette de nom superposée sur la photo.
-RECIPE_CARD_LABEL_COLOR = "#E28F49"
+RECIPE_CARD_LABEL_COLOR = "#E8730C"
 
 
 def render_recipe_image_card(name: str, image: Image.Image, size: tuple[int, int] = RECIPE_CARD_IMAGE_SIZE) -> None:
@@ -501,7 +528,7 @@ def build_shopping_text(title: str, grouped: dict) -> str:
         if category in grouped:
             lines.append(f"=== {category.upper()} ===")
             for item in grouped[category]:
-                lines.append(f"- {item}")
+                lines.append(f"☐ {item}")
             lines.append("")
     return "\n".join(lines)
 
@@ -557,7 +584,11 @@ def _escape_applescript(text: str) -> str:
 # Génération du carnet de recettes en PDF (en mémoire)
 # ---------------------------------------------------------------------------
 
-def build_recipe_booklet_pdf(choices: list[RecipeChoice], recipes: dict) -> bytes:
+def build_recipe_booklet_pdf(
+    choices: list[RecipeChoice],
+    recipes: dict,
+    title: str = "Carnet de recettes de la semaine",
+) -> bytes:
     buffer = io.BytesIO()
     doc = SimpleDocTemplate(
         buffer, pagesize=A4,
@@ -592,7 +623,7 @@ def build_recipe_booklet_pdf(choices: list[RecipeChoice], recipes: dict) -> byte
     story.append(logo)
 
     story.append(Spacer(1, 4 * cm))
-    story.append(Paragraph("Carnet de recettes de la semaine", cover_title_style))
+    story.append(Paragraph(html.escape(title), cover_title_style))
     story.append(Spacer(1, 1.5 * cm))
     sommaire_items = [
         ListItem(Paragraph(f"{c.name} — {c.people} personne(s)", styles["Normal"]))
@@ -602,17 +633,33 @@ def build_recipe_booklet_pdf(choices: list[RecipeChoice], recipes: dict) -> byte
     story.append(PageBreak())
 
     # --- Une page par recette ---
+    # Dimensions du cadre photo : 5 cm de hauteur, orientation d'origine
+    # conservée (portrait reste portrait, paysage reste paysage) grâce à
+    # fit_image_to_canvas — la même logique que sur la page « Générer ma
+    # liste » — avec une marge ajoutée si besoin pour obtenir un cadre de
+    # taille fixe. Rendu à 150 dpi, largement suffisant pour l'impression.
+    PHOTO_HEIGHT_CM = 5
+    PHOTO_WIDTH_CM = 6
+    _dpi = 150
+    _photo_canvas_size = (
+        int(PHOTO_WIDTH_CM / 2.54 * _dpi),
+        int(PHOTO_HEIGHT_CM / 2.54 * _dpi),
+    )
+    LEFT_COL_WIDTH = 6.5 * cm
+    RIGHT_COL_WIDTH = 10.5 * cm
+
     for choice in choices:
         recipe = recipes[choice.name]
         base = recipe["portions_base"]
         ratio = Fraction(choice.people, base)
 
         pil_image = get_recipe_image(choice.name, recipe["image"])
+        canvas_image = fit_image_to_canvas(pil_image, size=_photo_canvas_size)
         img_buffer = io.BytesIO()
-        pil_image.save(img_buffer, format="JPEG", quality=90)
+        canvas_image.save(img_buffer, format="JPEG", quality=90)
         img_buffer.seek(0)
-        rl_image = RLImage(img_buffer, width=15 * cm, height=9.4 * cm)
-        rl_image.hAlign = "CENTER"
+        rl_image = RLImage(img_buffer, width=PHOTO_WIDTH_CM * cm, height=PHOTO_HEIGHT_CM * cm)
+        rl_image.hAlign = "LEFT"
 
         story.append(Paragraph(choice.name, title_style))
         subtitle_parts = [f"Pour {choice.people} personne(s)"]
@@ -628,12 +675,12 @@ def build_recipe_booklet_pdf(choices: list[RecipeChoice], recipes: dict) -> byte
         if recipe.get("description"):
             story.append(Paragraph(recipe["description"], styles["Italic"]))
             story.append(Spacer(1, 6))
-        story.append(rl_image)
 
-        story.append(Paragraph("Ingrédients", section_style))
-
+        # --- Colonne de droite : ingrédients ---
+        ingredients_flowables = [Paragraph("Ingrédients", section_style)]
         for section_name, ingredients in recipe["ingredients"].items():
-            story.append(Paragraph(section_name, styles["Heading3"]))
+            if len(recipe["ingredients"]) > 1:
+                ingredients_flowables.append(Paragraph(section_name, styles["Heading3"]))
 
             table_data = [["Quantité", "Ingrédient"]]
             for ingredient_name, qty, unit in ingredients:
@@ -645,19 +692,38 @@ def build_recipe_booklet_pdf(choices: list[RecipeChoice], recipes: dict) -> byte
                     ingredient_name.capitalize(),
                 ])
 
-            table = Table(table_data, colWidths=[4 * cm, 11 * cm])
-            table.setStyle(TableStyle([
+            ing_table = Table(table_data, colWidths=[2.8 * cm, 7.2 * cm])
+            ing_table.setStyle(TableStyle([
                 ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#EFE7DA")),
                 ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
                 ("GRID", (0, 0), (-1, -1), 0.5, colors.HexColor("#CCCCCC")),
                 ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
-                ("LEFTPADDING", (0, 0), (-1, -1), 8),
-                ("TOPPADDING", (0, 0), (-1, -1), 5),
-                ("BOTTOMPADDING", (0, 0), (-1, -1), 5),
+                ("FONTSIZE", (0, 0), (-1, -1), 9),
+                ("LEFTPADDING", (0, 0), (-1, -1), 6),
+                ("TOPPADDING", (0, 0), (-1, -1), 4),
+                ("BOTTOMPADDING", (0, 0), (-1, -1), 4),
             ]))
-            story.append(table)
-            story.append(Spacer(1, 6))
+            ingredients_flowables.append(ing_table)
+            ingredients_flowables.append(Spacer(1, 6))
 
+        # --- Photo (gauche) + ingrédients (droite), côte à côte ---
+        layout_table = Table(
+            [[rl_image, ingredients_flowables]],
+            colWidths=[LEFT_COL_WIDTH, RIGHT_COL_WIDTH],
+        )
+        layout_table.setStyle(TableStyle([
+            ("VALIGN", (0, 0), (-1, -1), "TOP"),
+            ("LEFTPADDING", (0, 0), (0, -1), 0),
+            ("RIGHTPADDING", (0, 0), (0, -1), 8),
+            ("LEFTPADDING", (1, 0), (1, -1), 8),
+            ("RIGHTPADDING", (1, 0), (1, -1), 0),
+            ("TOPPADDING", (0, 0), (-1, -1), 0),
+            ("BOTTOMPADDING", (0, 0), (-1, -1), 0),
+        ]))
+        story.append(layout_table)
+        story.append(Spacer(1, 10))
+
+        # --- Étapes de préparation, sous la photo et les ingrédients ---
         instructions = recipe.get("instructions")
         if instructions:
             story.append(Paragraph("Préparation", section_style))

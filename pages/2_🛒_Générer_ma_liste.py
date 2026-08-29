@@ -215,6 +215,12 @@ for i, name in enumerate(names):
 
 st.divider()
 
+reference = st.text_input(
+    "📝 Référence (optionnel)",
+    placeholder="ex. : Repas de la semaine du 10 mai",
+    help="Apparaît en haut de la liste de courses et dans le titre du carnet de recettes.",
+)
+
 generate = st.button(
     "🧾 Générer la liste de courses et le carnet de recettes",
     type="primary",
@@ -226,6 +232,7 @@ if len(selected_choices) == 0:
 
 if generate:
     st.session_state["choices"] = selected_choices
+    st.session_state["reference"] = reference.strip()
 
 choices = st.session_state.get("choices")
 if not choices:
@@ -237,13 +244,15 @@ if not choices:
     st.warning("Les recettes sélectionnées ne sont plus disponibles. Merci de refaire votre sélection.")
     st.stop()
 
+reference = st.session_state.get("reference", "")
+
 # --- Liste de courses ---
 st.header("Liste de courses")
 
 shopping = common.build_shopping_list(choices, recipes)
 grouped = shopping.as_grouped_lines()
 
-shopping_title = "Liste de courses de la semaine"
+shopping_title = reference or "Liste de courses de la semaine"
 shopping_text = common.build_shopping_text(shopping_title, grouped)
 
 st.download_button(
@@ -258,8 +267,9 @@ render_share_widget(shopping_text)
 
 # --- Carnet de recettes PDF ---
 st.header("Carnet de recettes")
+booklet_title = f"Carnet de recettes — {reference}" if reference else "Carnet de recettes de la semaine"
 with st.spinner("Génération du carnet de recettes..."):
-    pdf_bytes = common.build_recipe_booklet_pdf(choices, recipes)
+    pdf_bytes = common.build_recipe_booklet_pdf(choices, recipes, title=booklet_title)
 
 st.download_button(
     "📕 Télécharger le carnet de recettes (PDF)",

@@ -41,6 +41,8 @@ from sqlalchemy import create_engine, text
 from sqlalchemy.engine import Engine
 from sqlalchemy.exc import IntegrityError
 
+import common
+
 # Exposé pour que les pages puissent faire `except db.IntegrityError` sans
 # avoir à importer sqlalchemy elles-mêmes (garde l'abstraction dans ce module).
 __all_exceptions__ = ["IntegrityError"]
@@ -280,6 +282,11 @@ def add_recipe(
     """Ajoute une nouvelle recette. Lève db.IntegrityError si le nom existe déjà."""
     now = _now_iso()
     description = (description or "")[:MAX_DESCRIPTION_CHARS]
+    if image_bytes:
+        try:
+            image_bytes, image_mime = common.prepare_image_for_storage(image_bytes)
+        except Exception:
+            pass  # Photo illisible : on la stocke telle quelle plutôt que de bloquer l'ajout.
     with get_conn() as conn:
         recipe_id = conn.execute(
             text("""
@@ -359,6 +366,11 @@ def update_recipe(
     est déjà utilisé par une AUTRE recette.
     """
     description = (description or "")[:MAX_DESCRIPTION_CHARS]
+    if image_bytes:
+        try:
+            image_bytes, image_mime = common.prepare_image_for_storage(image_bytes)
+        except Exception:
+            pass  # Photo illisible : on la stocke telle quelle plutôt que de bloquer la modification.
     with get_conn() as conn:
         conn.execute(
             text("""
