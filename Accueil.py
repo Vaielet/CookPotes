@@ -41,11 +41,15 @@ st.markdown(
     """
 Bienvenue ! Cette application te permet de :
 
-- **🛒 Générer ta liste de courses** : sélectionne les recettes pour 
+col1, col2 = st.columns(2)
+with col1:
+    **🛒 Générer ta liste de courses** : sélectionne les recettes pour 
   la semaine (ou le mois, soyons foufolles). Indique le
   nombre de personnes pour chaque recette, un clic et le tour est joué ! Tu reçois 
   ta liste de courses et un carnet avec les recettes sélectionnées en PDF.
-- **🍳 Ajouter une recette** : partage tes recettes coup de coeur ou celles de ton grand-père. **Réservé aux comptes avec le statut éditeur·rice** —
+
+with col2:
+    **🍳 Ajouter une recette** : partage tes recettes coup de coeur ou celles de ton grand-père. **Réservé aux comptes avec le statut éditeur·rice** —
   connectez-vous via le menu à gauche.
 
 Utilise le menu à gauche pour naviguer entre les pages.
