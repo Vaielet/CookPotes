@@ -77,8 +77,10 @@ COMMON_TAGS = [
 MAX_DESCRIPTION_CHARS = 300
 
 def header_logo():
-    st.image("images/CookPotes_logo.png", width=200)
-    #st.markdown(f"**{r[L'app qui te simplifie la vie]}**")
+    col1, col2, col3 = st.columns(3)
+    with col2:
+        st.image("images/CookPotes_logo.png", width=300)
+        #st.markdown(f"**{r[L'app qui te simplifie la vie]}**")
     
 
 def format_datetime(iso_string: str | None) -> str:
