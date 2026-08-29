@@ -45,12 +45,16 @@ Bienvenue ! Cette application te permet de :
 
 col1, col2 = st.columns(2)
 with col1:
-    st.markdown("**🛒 Générer ta liste de courses** : sélectionne les recettes pour" 
-    "la semaine (ou le mois, soyons foufolles). Indique le"
+    if st.button("Générer ma liste"):
+        st.switch_page("pages/2_🛒_Générer_ma_liste.py")
+    st.markdown("Sélectionne les recettes pour " 
+    "la semaine (ou le mois, soyons foufolles). Indique le "
     "nombre de personnes pour chaque recette, un clic et le tour est joué ! Tu reçois "
     "ta liste de courses et un carnet avec les recettes sélectionnées en PDF.")
 
 with col2:
+    if st.button("🍳 Ajouter une recette"):
+        st.switch_page("pages/1_🍳_Ajouter_une_recette.py")
     st.markdown("**🍳 Ajouter une recette** : partage tes recettes coup de coeur ou celles de ton grand-père."
     "**Réservé aux comptes avec le statut éditeur·rice** —"
     "connectez-vous via le menu à gauche.")
