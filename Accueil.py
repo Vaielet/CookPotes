@@ -45,21 +45,12 @@ Bienvenue ! Cette application te permet de :
   la semaine (ou le mois, soyons foufolles). Indique le
   nombre de personnes pour chaque recette, un clic et le tour est joué ! Tu reçois 
   ta liste de courses et un carnet avec les recettes sélectionnées en PDF.
-- **🍳 Ajouter une recette** : partage tes recettes coup de coeur ou celles de ton grand-père. **Réservé aux comptes avec le statut éditeur** —
+- **🍳 Ajouter une recette** : partage tes recettes coup de coeur ou celles de ton grand-père. **Réservé aux comptes avec le statut éditeur·rice** —
   connectez-vous via le menu à gauche.
 
 Utilise le menu à gauche pour naviguer entre les pages.
 """
 )
-
-if not auth.is_logged_in():
-    st.info(
-        "🔑 Premier lancement ? Connectez-vous avec le compte administrateur "
-        "par défaut (**admin** / **admin123**) via le menu à gauche, puis "
-        "changez ce mot de passe et créez vos propres comptes depuis "
-        "« 👤 Gestion des utilisateurs »."
-    )
-
 recipes = db.get_all_recipes()
 
 col1, col2 = st.columns(2)
