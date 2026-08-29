@@ -55,7 +55,7 @@ with col1:
 with col2:
     if st.button("🍳 Ajouter une recette"):
         st.switch_page("pages/1_🍳_Ajouter_une_recette.py")
-    st.markdown("Partage tes recettes coup de coeur ou celles de ton grand-père."
+    st.markdown("Partage tes recettes coup de coeur ou celles de ton grand-père. "
     "**Réservé aux comptes avec le statut éditeur·rice** —"
     "connectez-vous via le menu à gauche.")
 
@@ -66,7 +66,7 @@ recipes = db.get_all_recipes()
 
 recent = db.get_recent_recipes(limit=5)
 if recent:
-    st.subheader("🆕 Dernières recettes ajoutées")
+    st.subheader("Dernières recettes ajoutées")
     recent_cols = st.columns(len(recent))
     for col, r in zip(recent_cols, recent):
         with col:
