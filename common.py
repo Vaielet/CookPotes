@@ -528,7 +528,7 @@ def build_shopping_text(title: str, grouped: dict) -> str:
         if category in grouped:
             lines.append(f"=== {category.upper()} ===")
             for item in grouped[category]:
-                lines.append(f"☐ {item}")
+                lines.append(f"– {item}")
             lines.append("")
     return "\n".join(lines)
 
@@ -580,9 +580,58 @@ def _escape_applescript(text: str) -> str:
     return text.replace("\\", "\\\\").replace('"', '\\"')
 
 
+
 # ---------------------------------------------------------------------------
 # Génération du carnet de recettes en PDF (en mémoire)
 # ---------------------------------------------------------------------------
+#
+# Palette reprise de l'identité visuelle de l'app (même orange que les
+# étiquettes de vignette recette, même beige que le fond des photos), pour
+# que le PDF ait l'air de sortir du même site plutôt que d'un générateur
+# générique.
+
+PDF_ORANGE_HEX = "#E8730C"
+PDF_ORANGE = colors.HexColor(PDF_ORANGE_HEX)
+PDF_ORANGE_SOFT = colors.HexColor("#F8E6D3")   # fond zébré très léger des tableaux
+PDF_BEIGE = colors.HexColor("#EEE7DA")          # fond de la carte d'en-tête (identique au fond photo)
+PDF_INK = colors.HexColor("#3A2E22")            # texte principal, brun chaud plutôt que noir pur
+PDF_GREY = colors.HexColor("#8A7F72")           # texte secondaire (sous-titres, pied de page)
+PDF_LINE = colors.HexColor("#E3D9C8")           # filets/grilles discrets
+
+# Chaque recette tient normalement sur une seule page (marges réduites,
+# typographie compacte). Une recette avec beaucoup d'ingrédients ou
+# d'étapes déborde naturellement sur la page suivante — Reportlab gère ça
+# tout seul tant qu'on ne force pas de saut de page au milieu du contenu ;
+# le PageBreak() explicite n'intervient qu'APRÈS chaque recette.
+PDF_MARGIN = 1.6 * cm
+
+
+def _pdf_footer(canvas, doc) -> None:
+    """Pied de page discret sur chaque page : liseré orange + nom de l'app + numéro de page."""
+    canvas.saveState()
+    width, _ = A4
+    canvas.setStrokeColor(PDF_ORANGE)
+    canvas.setLineWidth(1)
+    canvas.line(PDF_MARGIN, 1.25 * cm, width - PDF_MARGIN, 1.25 * cm)
+    canvas.setFont("Helvetica", 8)
+    canvas.setFillColor(PDF_GREY)
+    canvas.drawString(PDF_MARGIN, 0.8 * cm, "CookPotes")
+    canvas.drawRightString(width - PDF_MARGIN, 0.8 * cm, f"Page {doc.page}")
+    canvas.restoreState()
+
+
+def _underline_heading(text_str: str, style: ParagraphStyle, width: float) -> Table:
+    """Titre de section avec un filet orange en-dessous, sur toute la largeur donnée."""
+    t = Table([[Paragraph(text_str, style)]], colWidths=[width])
+    t.setStyle(TableStyle([
+        ("LINEBELOW", (0, 0), (-1, -1), 1.2, PDF_ORANGE),
+        ("TOPPADDING", (0, 0), (-1, -1), 0),
+        ("BOTTOMPADDING", (0, 0), (-1, -1), 3),
+        ("LEFTPADDING", (0, 0), (-1, -1), 0),
+        ("RIGHTPADDING", (0, 0), (-1, -1), 0),
+    ]))
+    return t
+
 
 def build_recipe_booklet_pdf(
     choices: list[RecipeChoice],
@@ -592,52 +641,83 @@ def build_recipe_booklet_pdf(
     buffer = io.BytesIO()
     doc = SimpleDocTemplate(
         buffer, pagesize=A4,
-        topMargin=2 * cm, bottomMargin=2 * cm,
-        leftMargin=2 * cm, rightMargin=2 * cm,
+        topMargin=PDF_MARGIN, bottomMargin=1.7 * cm,
+        leftMargin=PDF_MARGIN, rightMargin=PDF_MARGIN,
     )
     styles = getSampleStyleSheet()
 
     title_style = ParagraphStyle(
-        "RecipeTitle", parent=styles["Title"], fontSize=22, spaceAfter=6,
+        "RecipeTitle", parent=styles["Title"], fontName="Helvetica-Bold",
+        fontSize=19, leading=22, textColor=PDF_ORANGE, alignment=0,
+        spaceAfter=2,
     )
     subtitle_style = ParagraphStyle(
-        "Subtitle", parent=styles["Normal"], fontSize=12,
-        textColor=colors.grey, spaceAfter=14,
+        "Subtitle", parent=styles["Normal"], fontSize=9.5, leading=13,
+        textColor=PDF_GREY, spaceAfter=2,
+    )
+    tags_style = ParagraphStyle(
+        "Tags", parent=styles["Normal"], fontSize=8.5, leading=12,
+        textColor=PDF_ORANGE, spaceAfter=2,
+    )
+    description_style = ParagraphStyle(
+        "Description", parent=styles["Italic"], fontSize=9.5, leading=12.5,
+        textColor=PDF_INK, spaceBefore=3,
     )
     section_style = ParagraphStyle(
-        "Section", parent=styles["Heading2"], fontSize=14,
-        spaceBefore=12, spaceAfter=6,
+        "Section", parent=styles["Heading2"], fontName="Helvetica-Bold",
+        fontSize=12.5, textColor=PDF_ORANGE, spaceBefore=0, spaceAfter=0,
+        leading=15,
+    )
+    subsection_style = ParagraphStyle(
+        "SubSection", parent=styles["Heading3"], fontName="Helvetica-Bold",
+        fontSize=10, spaceBefore=6, spaceAfter=3, textColor=PDF_INK,
+    )
+    body_style = ParagraphStyle(
+        "Body", parent=styles["Normal"], fontSize=9.5, leading=13, textColor=PDF_INK,
     )
     cover_title_style = ParagraphStyle(
-        "CoverTitle", parent=styles["Title"], fontSize=28, alignment=TA_CENTER,
+        "CoverTitle", parent=styles["Title"], fontSize=26, alignment=TA_CENTER,
+        textColor=PDF_ORANGE,
     )
+    cover_item_style = ParagraphStyle(
+        "CoverItem", parent=styles["Normal"], fontSize=11.5, leading=19, textColor=PDF_INK,
+    )
+
+    CONTENT_WIDTH = A4[0] - 2 * PDF_MARGIN
 
     story = []
 
-    # --- Page de couverture : sommaire de la semaine ---
-    logo = RLImage("images/CookPotes_logo_with_subtitle.png", width=8*cm, height=8*cm)
+    # --- Page de couverture ---
+    try:
+        logo = RLImage("images/CookPotes_logo_with_subtitle.png", width=6.5 * cm, height=6.5 * cm)
+        logo.hAlign = "CENTER"
+        story.append(Spacer(1, 1.3 * cm))
+        story.append(logo)
+        story.append(Spacer(1, 1.8 * cm))
+    except Exception:
+        story.append(Spacer(1, 4 * cm))
 
-    logo.hAlign = "CENTER"
-
-    story.append(Spacer(1, 2 * cm))
-    story.append(logo)
-
-    story.append(Spacer(1, 4 * cm))
     story.append(Paragraph(html.escape(title), cover_title_style))
-    story.append(Spacer(1, 1.5 * cm))
+    story.append(Spacer(1, 1.2 * cm))
     sommaire_items = [
-        ListItem(Paragraph(f"{c.name} — {c.people} personne(s)", styles["Normal"]))
+        ListItem(
+            Paragraph(f"<b>{html.escape(c.name)}</b> — {c.people} personne(s)", cover_item_style),
+            spaceAfter=4,
+        )
         for c in choices
     ]
-    story.append(ListFlowable(sommaire_items, bulletType="bullet"))
+    story.append(ListFlowable(
+        sommaire_items, bulletType="bullet", bulletColor=PDF_ORANGE, bulletFontSize=11,
+    ))
     story.append(PageBreak())
 
     # --- Une page par recette ---
-    # Dimensions du cadre photo : 5 cm de hauteur, orientation d'origine
-    # conservée (portrait reste portrait, paysage reste paysage) grâce à
-    # fit_image_to_canvas — la même logique que sur la page « Générer ma
-    # liste » — avec une marge ajoutée si besoin pour obtenir un cadre de
-    # taille fixe. Rendu à 150 dpi, largement suffisant pour l'impression.
+    # Reportlab laisse le contenu s'écouler naturellement : si une recette a
+    # beaucoup d'ingrédients ou d'étapes, la fin déborde toute seule sur une
+    # page supplémentaire avant le PageBreak() explicite de fin de recette —
+    # pas besoin de forcer quoi que ce soit pour ça. Le travail porte donc
+    # sur la densité de la mise en page pour qu'une recette "normale" tienne
+    # confortablement sur une seule page.
     PHOTO_HEIGHT_CM = 5
     PHOTO_WIDTH_CM = 6
     _dpi = 150
@@ -645,8 +725,9 @@ def build_recipe_booklet_pdf(
         int(PHOTO_WIDTH_CM / 2.54 * _dpi),
         int(PHOTO_HEIGHT_CM / 2.54 * _dpi),
     )
-    LEFT_COL_WIDTH = 6.5 * cm
-    RIGHT_COL_WIDTH = 10.5 * cm
+    LEFT_COL_WIDTH = 6.2 * cm
+    GUTTER_PT = 12
+    RIGHT_COL_WIDTH = CONTENT_WIDTH - LEFT_COL_WIDTH - (GUTTER_PT / 72 * 2.54 * cm / 2.54)
 
     for choice in choices:
         recipe = recipes[choice.name]
@@ -654,90 +735,143 @@ def build_recipe_booklet_pdf(
         ratio = Fraction(choice.people, base)
 
         pil_image = get_recipe_image(choice.name, recipe["image"])
-        canvas_image = fit_image_to_canvas(pil_image, size=_photo_canvas_size)
+        canvas_image = fit_image_to_canvas(pil_image, size=_photo_canvas_size, background=(238, 231, 218))
         img_buffer = io.BytesIO()
         canvas_image.save(img_buffer, format="JPEG", quality=90)
         img_buffer.seek(0)
         rl_image = RLImage(img_buffer, width=PHOTO_WIDTH_CM * cm, height=PHOTO_HEIGHT_CM * cm)
-        rl_image.hAlign = "LEFT"
+        rl_image.hAlign = "CENTER"
 
-        story.append(Paragraph(choice.name, title_style))
-        subtitle_parts = [f"Pour {choice.people} personne(s)"]
+        # --- Carte d'en-tête : titre + infos clés, fond beige + liseré orange ---
+        header_flow = [Paragraph(html.escape(choice.name), title_style)]
+
+        subtitle_parts = [f"{choice.people} personne(s)"]
         prep = format_time_minutes(recipe.get("prep_time_minutes"))
         cook = format_time_minutes(recipe.get("cook_time_minutes"))
         if prep:
-            subtitle_parts.append(f"Préparation : {prep}")
+            subtitle_parts.append(f"Préparation {prep}")
         if cook:
-            subtitle_parts.append(f"Cuisson : {cook}")
+            subtitle_parts.append(f"Cuisson {cook}")
+        header_flow.append(Paragraph(" &nbsp;·&nbsp; ".join(subtitle_parts), subtitle_style))
+
         if recipe.get("tags"):
-            subtitle_parts.append(", ".join(recipe["tags"]))
-        story.append(Paragraph("  •  ".join(subtitle_parts), subtitle_style))
+            tags_txt = " &nbsp;&nbsp; ".join(html.escape(t) for t in recipe["tags"])
+            header_flow.append(Paragraph(tags_txt, tags_style))
+
         if recipe.get("description"):
-            story.append(Paragraph(recipe["description"], styles["Italic"]))
-            story.append(Spacer(1, 6))
+            header_flow.append(Paragraph(html.escape(recipe["description"]), description_style))
 
-        # --- Colonne de droite : ingrédients ---
-        ingredients_flowables = [Paragraph("Ingrédients", section_style)]
-        for section_name, ingredients in recipe["ingredients"].items():
-            if len(recipe["ingredients"]) > 1:
-                ingredients_flowables.append(Paragraph(section_name, styles["Heading3"]))
-
-            table_data = [["Quantité", "Ingrédient"]]
-            for ingredient_name, qty, unit in ingredients:
-                scaled = Fraction(str(qty)).limit_denominator(100) * ratio
-                qty_str = format_quantity(scaled)
-                unit_str = "" if unit == "unité" else unit
-                table_data.append([
-                    f"{qty_str} {unit_str}".strip(),
-                    ingredient_name.capitalize(),
-                ])
-
-            ing_table = Table(table_data, colWidths=[2.8 * cm, 7.2 * cm])
-            ing_table.setStyle(TableStyle([
-                ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#EFE7DA")),
-                ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
-                ("GRID", (0, 0), (-1, -1), 0.5, colors.HexColor("#CCCCCC")),
-                ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
-                ("FONTSIZE", (0, 0), (-1, -1), 9),
-                ("LEFTPADDING", (0, 0), (-1, -1), 6),
-                ("TOPPADDING", (0, 0), (-1, -1), 4),
-                ("BOTTOMPADDING", (0, 0), (-1, -1), 4),
-            ]))
-            ingredients_flowables.append(ing_table)
-            ingredients_flowables.append(Spacer(1, 6))
-
-        # --- Photo (gauche) + ingrédients (droite), côte à côte ---
-        layout_table = Table(
-            [[rl_image, ingredients_flowables]],
-            colWidths=[LEFT_COL_WIDTH, RIGHT_COL_WIDTH],
-        )
-        layout_table.setStyle(TableStyle([
-            ("VALIGN", (0, 0), (-1, -1), "TOP"),
-            ("LEFTPADDING", (0, 0), (0, -1), 0),
-            ("RIGHTPADDING", (0, 0), (0, -1), 8),
-            ("LEFTPADDING", (1, 0), (1, -1), 8),
-            ("RIGHTPADDING", (1, 0), (1, -1), 0),
-            ("TOPPADDING", (0, 0), (-1, -1), 0),
-            ("BOTTOMPADDING", (0, 0), (-1, -1), 0),
+        header_table = Table([[header_flow]], colWidths=[CONTENT_WIDTH])
+        header_table.setStyle(TableStyle([
+            ("BACKGROUND", (0, 0), (-1, -1), PDF_BEIGE),
+            ("LINEBEFORE", (0, 0), (0, -1), 4, PDF_ORANGE),
+            ("LEFTPADDING", (0, 0), (-1, -1), 12),
+            ("RIGHTPADDING", (0, 0), (-1, -1), 12),
+            ("TOPPADDING", (0, 0), (-1, -1), 8),
+            ("BOTTOMPADDING", (0, 0), (-1, -1), 8),
         ]))
-        story.append(layout_table)
-        story.append(Spacer(1, 10))
+        story.append(header_table)
+        story.append(Spacer(1, 9))
+
+        # --- Ingrédients : construits pour une largeur donnée (réutilisé
+        # pour les deux mises en page ci-dessous) ---
+        def _build_ingredients_flow(width: float) -> list:
+            flow = [_underline_heading("Ingrédients", section_style, width)]
+            flow.append(Spacer(1, 4))
+            multi_section = len(recipe["ingredients"]) > 1
+            for section_name, ingredients in recipe["ingredients"].items():
+                if multi_section:
+                    flow.append(Paragraph(html.escape(section_name), subsection_style))
+
+                table_data = [["Qté", "Ingrédient"]]
+                for ingredient_name, qty, unit in ingredients:
+                    scaled = Fraction(str(qty)).limit_denominator(100) * ratio
+                    qty_str = format_quantity(scaled)
+                    unit_str = "" if unit == "unité" else unit
+                    table_data.append([
+                        f"{qty_str} {unit_str}".strip(),
+                        ingredient_name.capitalize(),
+                    ])
+
+                ing_table = Table(
+                    table_data,
+                    colWidths=[2.3 * cm, width - 2.3 * cm],
+                    repeatRows=1,
+                )
+                ing_table.setStyle(TableStyle([
+                    ("BACKGROUND", (0, 0), (-1, 0), PDF_ORANGE),
+                    ("TEXTCOLOR", (0, 0), (-1, 0), colors.white),
+                    ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
+                    ("FONTSIZE", (0, 0), (-1, -1), 8.5),
+                    ("ROWBACKGROUNDS", (0, 1), (-1, -1), [colors.white, PDF_ORANGE_SOFT]),
+                    ("GRID", (0, 0), (-1, -1), 0.4, PDF_LINE),
+                    ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+                    ("LEFTPADDING", (0, 0), (-1, -1), 5),
+                    ("RIGHTPADDING", (0, 0), (-1, -1), 5),
+                    ("TOPPADDING", (0, 0), (-1, -1), 3),
+                    ("BOTTOMPADDING", (0, 0), (-1, -1), 3),
+                ]))
+                flow.append(ing_table)
+                flow.append(Spacer(1, 5))
+            return flow
+
+        # Un tableau photo+ingrédients côte à côte n'a qu'UNE seule ligne :
+        # Reportlab ne peut pas le scinder sur deux pages, il plante si le
+        # contenu est trop haut. Pour les recettes avec beaucoup
+        # d'ingrédients, on bascule donc sur une mise en page empilée
+        # (photo, puis ingrédients pleine largeur) qui, elle, se scinde
+        # naturellement sur autant de pages que nécessaire.
+        total_ingredient_rows = sum(len(rows) for rows in recipe["ingredients"].values())
+        use_side_by_side = total_ingredient_rows <= 22
+
+        if use_side_by_side:
+            # --- Photo (gauche) + ingrédients (droite), côte à côte ---
+            ingredients_flowables = _build_ingredients_flow(RIGHT_COL_WIDTH)
+            layout_table = Table(
+                [[rl_image, ingredients_flowables]],
+                colWidths=[LEFT_COL_WIDTH, RIGHT_COL_WIDTH],
+            )
+            layout_table.setStyle(TableStyle([
+                ("VALIGN", (0, 0), (-1, -1), "TOP"),
+                ("BOX", (0, 0), (0, 0), 0.6, PDF_LINE),
+                ("LEFTPADDING", (0, 0), (0, -1), 0),
+                ("RIGHTPADDING", (0, 0), (0, -1), 0),
+                ("LEFTPADDING", (1, 0), (1, -1), GUTTER_PT),
+                ("RIGHTPADDING", (1, 0), (1, -1), 0),
+                ("TOPPADDING", (0, 0), (-1, -1), 0),
+                ("BOTTOMPADDING", (0, 0), (-1, -1), 0),
+            ]))
+            story.append(layout_table)
+            story.append(Spacer(1, 10))
+        else:
+            # --- Mise en page empilée pour les grosses recettes ---
+            img_buffer.seek(0)  # rl_image a déjà consommé la lecture du buffer une première fois
+            small_image = RLImage(img_buffer, width=4.2 * cm, height=3.5 * cm)
+            small_image.hAlign = "LEFT"
+            story.append(small_image)
+            story.append(Spacer(1, 8))
+            for flowable in _build_ingredients_flow(CONTENT_WIDTH):
+                story.append(flowable)
+            story.append(Spacer(1, 4))
 
         # --- Étapes de préparation, sous la photo et les ingrédients ---
         instructions = recipe.get("instructions")
         if instructions:
-            story.append(Paragraph("Préparation", section_style))
+            story.append(_underline_heading("Préparation", section_style, CONTENT_WIDTH))
+            story.append(Spacer(1, 4))
             step_items = [
-                ListItem(Paragraph(step, styles["Normal"]), leftIndent=10)
+                ListItem(Paragraph(html.escape(step), body_style), leftIndent=6, spaceAfter=4)
                 for step in instructions
             ]
-            story.append(ListFlowable(step_items, bulletType="1"))
+            story.append(ListFlowable(
+                step_items, bulletType="1", bulletColor=PDF_ORANGE, bulletFontName="Helvetica-Bold",
+            ))
 
         story.append(PageBreak())
 
     if story and isinstance(story[-1], PageBreak):
         story.pop()
 
-    doc.build(story)
+    doc.build(story, onFirstPage=_pdf_footer, onLaterPages=_pdf_footer)
     buffer.seek(0)
     return buffer.getvalue()
