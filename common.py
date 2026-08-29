@@ -7,6 +7,7 @@ images de secours et du carnet de recettes PDF.
 from __future__ import annotations
 
 import streamlit as st
+import base64
 import io
 import platform
 import subprocess
@@ -15,7 +16,7 @@ from collections import defaultdict
 from datetime import datetime
 from fractions import Fraction
 
-from PIL import Image, ImageDraw, ImageFont
+from PIL import Image, ImageDraw, ImageFont, ImageOps
 
 from reportlab.lib.pagesizes import A4
 from reportlab.lib.units import cm
@@ -313,10 +314,86 @@ def format_quantity(qty: Fraction) -> str:
 def get_recipe_image(name: str, image_bytes: bytes | None) -> Image.Image:
     if image_bytes:
         try:
-            return Image.open(io.BytesIO(image_bytes)).convert("RGB")
+            img = Image.open(io.BytesIO(image_bytes))
+            # Beaucoup de photos (notamment prises au smartphone) stockent leur
+            # orientation réelle dans les métadonnées EXIF plutôt que dans les
+            # pixels eux-mêmes : sans ce correctif, une photo prise en portrait
+            # peut s'afficher "à plat" en paysage. exif_transpose() applique la
+            # rotation/le miroir indiqués par l'EXIF puis supprime cette
+            # métadonnée (devenue inutile) du résultat.
+            img = ImageOps.exif_transpose(img)
+            return img.convert("RGB")
         except Exception:
             pass
     return generate_placeholder_image(name)
+
+
+def fit_image_to_canvas(
+    img: Image.Image,
+    size: tuple[int, int] = (400, 260),
+    background: tuple[int, int, int] = (238, 231, 218),
+) -> Image.Image:
+    """
+    Cale une image dans un cadre de dimensions `size` fixes, SANS la
+    recadrer ni changer son orientation (une photo portrait reste
+    portrait, une photo paysage reste paysage) : l'image est réduite pour
+    tenir entièrement dans le cadre, puis centrée sur un fond uni qui
+    comble l'espace restant (bordure/marge). Toutes les vignettes ainsi
+    produites ont exactement les mêmes dimensions, quelle que soit
+    l'orientation ou le ratio de la photo d'origine.
+    """
+    canvas = Image.new("RGB", size, color=background)
+    thumb = img.copy()
+    thumb.thumbnail(size, Image.LANCZOS)
+    x = (size[0] - thumb.width) // 2
+    y = (size[1] - thumb.height) // 2
+    canvas.paste(thumb, (x, y))
+    return canvas
+
+
+def image_to_data_uri(img: Image.Image, format: str = "JPEG", quality: int = 85) -> str:
+    """Encode une image PIL en data URI base64 pour l'intégrer dans du HTML (ex: st.markdown)."""
+    buffer = io.BytesIO()
+    img.save(buffer, format=format, quality=quality)
+    encoded = base64.b64encode(buffer.getvalue()).decode("ascii")
+    mime = "image/jpeg" if format.upper() == "JPEG" else f"image/{format.lower()}"
+    return f"data:{mime};base64,{encoded}"
+
+
+# Dimensions fixes des vignettes recette, utilisées partout où une photo de
+# recette est affichée (page d'accueil, générateur de liste, ...), pour un
+# rendu homogène sur toute l'application.
+RECIPE_CARD_IMAGE_SIZE = (400, 260)
+
+# Fond orange uni de l'étiquette de nom superposée sur la photo.
+RECIPE_CARD_LABEL_COLOR = "#E28F49"
+
+
+def render_recipe_image_card(name: str, image: Image.Image, size: tuple[int, int] = RECIPE_CARD_IMAGE_SIZE) -> None:
+    """
+    Affiche la photo d'une recette dans un cadre de dimensions fixes
+    (orientation d'origine conservée — portrait reste portrait, paysage
+    reste paysage —, une marge est ajoutée si besoin pour uniformiser
+    toutes les vignettes), avec le nom de la recette en étiquette orange
+    superposée en bas de la photo.
+    """
+    canvas = fit_image_to_canvas(image, size=size)
+    data_uri = image_to_data_uri(canvas)
+    st.markdown(
+        f"""
+        <div style="position:relative; width:100%; margin-bottom:0.6em;
+                    border-radius:10px; overflow:hidden; border:1px solid #ddd;">
+          <img src="{data_uri}" style="width:100%; height:auto; display:block;" />
+          <div style="position:absolute; bottom:0; left:0; right:0;
+                      background:{RECIPE_CARD_LABEL_COLOR};
+                      color:white; padding:0.5em 0.7em; font-weight:600;
+                      font-size:1.05em; line-height:1.2;">
+            {name}
+          </div>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
 
 
 # Taille de police fixe utilisée pour le calcul de la mise en page du texte.

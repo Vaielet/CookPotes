@@ -41,16 +41,25 @@ st.markdown(
     """
 Bienvenue ! Cette application te permet de :
 
-- **🛒 Générer ta liste de courses** : sélectionne les recettes pour 
+- **🛒 Générer ta liste de courses** : sélectionnes les recettes pour 
   la semaine (ou le mois, soyons foufolles). Indique le
   nombre de personnes pour chaque recette, un clic et le tour est joué ! Tu reçois 
   ta liste de courses et un carnet avec les recettes sélectionnées en PDF.
-- **🍳 Ajouter une recette** : partage tes recettes coup de coeur ou celles de ton grand-père. **Réservé aux comptes avec le statut éditeur·rice** —
+- **🍳 Ajouter une recette** : partage tes recettes coup de coeur ou celles de ton grand-père. **Réservé aux comptes avec le statut éditeur** —
   connectez-vous via le menu à gauche.
 
 Utilise le menu à gauche pour naviguer entre les pages.
 """
 )
+
+if not auth.is_logged_in():
+    st.info(
+        "🔑 Premier lancement ? Connectez-vous avec le compte administrateur "
+        "par défaut (**admin** / **admin123**) via le menu à gauche, puis "
+        "changez ce mot de passe et créez vos propres comptes depuis "
+        "« 👤 Gestion des utilisateurs »."
+    )
+
 recipes = db.get_all_recipes()
 
 col1, col2 = st.columns(2)
@@ -63,8 +72,7 @@ if recent:
     for col, r in zip(recent_cols, recent):
         with col:
             img = common.get_recipe_image(r["name"], r["image"])
-            st.image(img, use_container_width=True)
-            st.markdown(f"**{r['name']}**")
+            common.render_recipe_image_card(r["name"], img)
             st.caption(
                 f"👤 {r['created_by'] or 'inconnu'}  \n"
                 f"🗓️ {common.format_datetime(r['created_at'])}"
