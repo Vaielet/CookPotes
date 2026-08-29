@@ -55,7 +55,6 @@ recipes = db.get_all_recipes()
 
 col1, col2 = st.columns(2)
 col1.metric("Recettes enregistrées", len(recipes))
-col2.metric("Base de données", db.get_backend_label())
 
 recent = db.get_recent_recipes(limit=5)
 if recent:
