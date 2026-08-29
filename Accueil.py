@@ -55,11 +55,11 @@ with col1:
 with col2:
     if st.button("🍳 Ajouter une recette"):
         st.switch_page("pages/1_🍳_Ajouter_une_recette.py")
-    st.markdown("**🍳 Ajouter une recette** : partage tes recettes coup de coeur ou celles de ton grand-père."
+    st.markdown("Partage tes recettes coup de coeur ou celles de ton grand-père."
     "**Réservé aux comptes avec le statut éditeur·rice** —"
     "connectez-vous via le menu à gauche.")
 
-st.markdown("Utilise le menu à gauche pour naviguer entre les pages.")
+st.markdown("Utilise les deux boutons ci-dessus ou le menu à gauche pour naviguer entre les pages (appuye sur les >> si tu utilise un smartphone ou une tablette.")
 
 
 recipes = db.get_all_recipes()
