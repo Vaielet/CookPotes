@@ -1,0 +1,5 @@
+streamlit
+pillow
+reportlab
+sqlalchemy
+psycopg2-binary
