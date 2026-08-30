@@ -139,7 +139,7 @@ if all_tags:
 author_filter = []
 if all_authors:
     author_filter = filter_cols[1].multiselect(
-        "👤 Filtrer par auteur (optionnel)",
+        "👤 Filtrer par auteur·rice (optionnel)",
         options=all_authors,
         help="Affiche uniquement les recettes ajoutées par les auteurs sélectionnés.",
     )
