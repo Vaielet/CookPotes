@@ -37,7 +37,7 @@ from contextlib import contextmanager
 from datetime import datetime, timezone
 
 import streamlit as st
-from sqlalchemy import create_engine, text
+from sqlalchemy import bindparam, create_engine, text
 from sqlalchemy.engine import Engine
 from sqlalchemy.exc import IntegrityError
 
@@ -55,6 +55,33 @@ DEFAULT_ADMIN_PASSWORD = "admin123"
 # Longueur maximale du petit texte de présentation d'une recette
 # ("pourquoi on l'aime bien"). Doit correspondre à common.MAX_DESCRIPTION_CHARS.
 MAX_DESCRIPTION_CHARS = 300
+
+# ---------------------------------------------------------------------------
+# Cache des lectures
+# ---------------------------------------------------------------------------
+#
+# Streamlit ré-exécute TOUT le script à chaque interaction (case cochée,
+# nombre de personnes modifié, clic sur un bouton...). Sans cache, ça
+# signifie une nouvelle série de requêtes vers la base Postgres distante
+# (Supabase) à chaque frappe/clic, ce qui domine largement le temps de
+# réponse ressenti. @st.cache_data mémorise le résultat en mémoire process
+# et ne refait la requête que si les données ont changé (invalidation
+# explicite ci-dessous) ou après `ttl` secondes (filet de sécurité en cas
+# de modification faite hors de l'appli, ex. directement dans Supabase).
+_READ_CACHE_TTL = 600  # secondes
+
+
+def _clear_recipe_caches() -> None:
+    """À appeler après toute écriture qui change le contenu des recettes."""
+    get_all_recipes.clear()
+    get_all_tags.clear()
+    get_all_authors.clear()
+    get_recent_recipes.clear()
+
+
+def _clear_user_caches() -> None:
+    """À appeler après toute écriture qui change les comptes utilisateur·rices."""
+    list_users.clear()
 
 
 def _now_iso() -> str:
@@ -336,12 +363,14 @@ def add_recipe(
                 {"recipe_id": recipe_id, "tag": tag},
             )
 
-        return recipe_id
+    _clear_recipe_caches()
+    return recipe_id
 
 
 def delete_recipe(recipe_id: int) -> None:
     with get_conn() as conn:
         conn.execute(text("DELETE FROM recipes WHERE id = :id"), {"id": recipe_id})
+    _clear_recipe_caches()
 
 
 def update_recipe(
@@ -421,6 +450,8 @@ def update_recipe(
                 {"recipe_id": recipe_id, "tag": tag},
             )
 
+    _clear_recipe_caches()
+
 
 def _dedupe_tags(tags: list[str] | None) -> list[str]:
     """Nettoie et déduplique une liste de tags en conservant l'ordre."""
@@ -492,6 +523,7 @@ def get_recipe_by_id(recipe_id: int) -> dict | None:
         }
 
 
+@st.cache_data(show_spinner=False, ttl=_READ_CACHE_TTL)
 def get_all_tags() -> list[str]:
     """Retourne la liste triée de toutes les catégories utilisées par au moins une recette."""
     with get_conn() as conn:
@@ -502,6 +534,7 @@ def get_all_tags() -> list[str]:
         return [row["tag"] for row in rows]
 
 
+@st.cache_data(show_spinner=False, ttl=_READ_CACHE_TTL)
 def get_all_authors() -> list[str]:
     """Retourne la liste triée des auteurs (created_by) ayant au moins une recette à leur nom."""
     with get_conn() as conn:
@@ -515,6 +548,7 @@ def get_all_authors() -> list[str]:
         return [row["created_by"] for row in rows]
 
 
+@st.cache_data(show_spinner=False, ttl=_READ_CACHE_TTL)
 def get_all_recipes() -> dict:
     """
     Retourne un dict {nom_recette: {...}} avec pour chaque recette :
@@ -522,42 +556,60 @@ def get_all_recipes() -> dict:
     (dict {section: [(nom, qty, unité), ...]}), instructions (liste de str),
     tags (liste de str), description, prep_time_minutes, cook_time_minutes,
     created_by, created_at, updated_by, updated_at.
+
+    Résultat mis en cache (voir `_clear_recipe_caches`) : sans ça, cette
+    fonction faisait 1 + 3×N requêtes (N = nombre de recettes) à chaque
+    rechargement de page — un aller-retour réseau par recette. Elle ne fait
+    maintenant que 4 requêtes au total, quel que soit le nombre de recettes,
+    en récupérant tous les ingrédients / instructions / tags en une seule
+    fois puis en les répartissant en mémoire.
     """
     result: dict = {}
     with get_conn() as conn:
         recipe_rows = conn.execute(text("SELECT * FROM recipes ORDER BY LOWER(name)")).mappings().all()
+        if not recipe_rows:
+            return result
+
+        recipe_ids = [r["id"] for r in recipe_rows]
+
+        ingredients_stmt = text(
+            "SELECT * FROM ingredients WHERE recipe_id IN :ids ORDER BY recipe_id, position"
+        ).bindparams(bindparam("ids", expanding=True))
+        instructions_stmt = text(
+            "SELECT * FROM instructions WHERE recipe_id IN :ids ORDER BY recipe_id, step_number"
+        ).bindparams(bindparam("ids", expanding=True))
+        tags_stmt = text(
+            "SELECT * FROM recipe_tags WHERE recipe_id IN :ids ORDER BY recipe_id, id"
+        ).bindparams(bindparam("ids", expanding=True))
+
+        ingredient_rows = conn.execute(ingredients_stmt, {"ids": recipe_ids}).mappings().all()
+        instruction_rows = conn.execute(instructions_stmt, {"ids": recipe_ids}).mappings().all()
+        tag_rows = conn.execute(tags_stmt, {"ids": recipe_ids}).mappings().all()
+
+        sections_by_recipe: dict[int, dict[str, list[tuple[str, float, str]]]] = {}
+        for row in ingredient_rows:
+            sections = sections_by_recipe.setdefault(row["recipe_id"], {})
+            sections.setdefault(row["section_name"], []).append(
+                (row["ingredient_name"], row["quantity"], row["unit"])
+            )
+
+        instructions_by_recipe: dict[int, list[str]] = {}
+        for row in instruction_rows:
+            instructions_by_recipe.setdefault(row["recipe_id"], []).append(row["text"])
+
+        tags_by_recipe: dict[int, list[str]] = {}
+        for row in tag_rows:
+            tags_by_recipe.setdefault(row["recipe_id"], []).append(row["tag"])
 
         for r in recipe_rows:
-            ingredient_rows = conn.execute(
-                text("SELECT * FROM ingredients WHERE recipe_id = :id ORDER BY position"),
-                {"id": r["id"]},
-            ).mappings().all()
-            sections: dict[str, list[tuple[str, float, str]]] = {}
-            for row in ingredient_rows:
-                sections.setdefault(row["section_name"], []).append(
-                    (row["ingredient_name"], row["quantity"], row["unit"])
-                )
-
-            instruction_rows = conn.execute(
-                text("SELECT text FROM instructions WHERE recipe_id = :id ORDER BY step_number"),
-                {"id": r["id"]},
-            ).mappings().all()
-            instructions = [row["text"] for row in instruction_rows]
-
-            tag_rows = conn.execute(
-                text("SELECT tag FROM recipe_tags WHERE recipe_id = :id ORDER BY id"),
-                {"id": r["id"]},
-            ).mappings().all()
-            tags = [row["tag"] for row in tag_rows]
-
             result[r["name"]] = {
                 "id": r["id"],
                 "portions_base": r["portions_base"],
                 "image": _image_bytes(r["image"]),
                 "image_mime": r["image_mime"],
-                "ingredients": sections,
-                "instructions": instructions,
-                "tags": tags,
+                "ingredients": sections_by_recipe.get(r["id"], {}),
+                "instructions": instructions_by_recipe.get(r["id"], []),
+                "tags": tags_by_recipe.get(r["id"], []),
                 "description": r["description"] or "",
                 "prep_time_minutes": r["prep_time_minutes"],
                 "cook_time_minutes": r["cook_time_minutes"],
@@ -570,6 +622,7 @@ def get_all_recipes() -> dict:
     return result
 
 
+@st.cache_data(show_spinner=False, ttl=_READ_CACHE_TTL)
 def get_recent_recipes(limit: int = 5) -> list[dict]:
     """
     Retourne les `limit` recettes les plus récemment créées (par created_at
@@ -650,7 +703,7 @@ def create_user(
     digest_hex, salt_hex = _hash_password(password)
 
     with get_conn() as conn:
-        return conn.execute(
+        new_id = conn.execute(
             text("""
                 INSERT INTO users
                 (username, password_hash, salt, is_editor, is_admin)
@@ -666,6 +719,8 @@ def create_user(
                 "is_admin": bool(is_admin),
             },
         ).scalar()
+    _clear_user_caches()
+    return new_id
 
 
 def verify_credentials(
@@ -708,6 +763,7 @@ def verify_credentials(
     }
 
 
+@st.cache_data(show_spinner=False, ttl=_READ_CACHE_TTL)
 def list_users() -> list[dict]:
     with get_conn() as conn:
         rows = conn.execute(
@@ -725,6 +781,7 @@ def set_user_role(user_id: int, is_editor: bool, is_admin: bool) -> None:
             text("UPDATE users SET is_editor = :is_editor, is_admin = :is_admin WHERE id = :id"),
             {"is_editor": bool(is_editor), "is_admin": bool(is_admin), "id": user_id},
         )
+    _clear_user_caches()
 
 
 def set_user_password(user_id: int, new_password: str) -> None:
@@ -734,11 +791,13 @@ def set_user_password(user_id: int, new_password: str) -> None:
             text("UPDATE users SET password_hash = :password_hash, salt = :salt WHERE id = :id"),
             {"password_hash": digest, "salt": salt, "id": user_id},
         )
+    _clear_user_caches()
 
 
 def delete_user(user_id: int) -> None:
     with get_conn() as conn:
         conn.execute(text("DELETE FROM users WHERE id = :id"), {"id": user_id})
+    _clear_user_caches()
 
 
 def count_admins() -> int:

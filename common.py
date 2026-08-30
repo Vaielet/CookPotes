@@ -312,6 +312,12 @@ def format_quantity(qty: Fraction) -> str:
 # Images des recettes (photo stockée en base sinon image générée en mémoire)
 # ---------------------------------------------------------------------------
 
+# Décoder une photo (rotation EXIF, conversion RGB) coûte du CPU à chaque
+# appel. Comme le résultat ne dépend que du nom et des octets de l'image,
+# on le met en cache : Streamlit ré-exécute tout le script à chaque clic
+# (case à cocher, nombre de personnes...) et sans ce cache, la même photo
+# était redécodée à chaque fois, pour chaque recette affichée.
+@st.cache_data(show_spinner=False, max_entries=200, ttl=3600)
 def get_recipe_image(name: str, image_bytes: bytes | None) -> Image.Image:
     if image_bytes:
         try:
@@ -396,16 +402,34 @@ RECIPE_CARD_IMAGE_SIZE = (400, 260)
 RECIPE_CARD_LABEL_COLOR = "#E8730C"
 
 
-def render_recipe_image_card(name: str, image: Image.Image, size: tuple[int, int] = RECIPE_CARD_IMAGE_SIZE) -> None:
+@st.cache_data(show_spinner=False, max_entries=200, ttl=3600)
+def _cached_card_data_uri(name: str, image_bytes: bytes | None, size: tuple[int, int]) -> str:
+    """
+    Calcule (et met en cache) la vignette encodée en data URI pour une
+    recette donnée. Ce pipeline (redimensionnement + centrage sur un fond
+    uni + réencodage JPEG + base64) est le poste le plus coûteux du rendu
+    des cartes recette ; sans cache il tournait pour CHAQUE recette
+    affichée à CHAQUE rechargement de page (donc à chaque case cochée /
+    nombre de personnes modifié sur la page « Générer ma liste »).
+    """
+    img = get_recipe_image(name, image_bytes)
+    canvas = fit_image_to_canvas(img, size=size)
+    return image_to_data_uri(canvas)
+
+
+def render_recipe_image_card(name: str, image_bytes: bytes | None, size: tuple[int, int] = RECIPE_CARD_IMAGE_SIZE) -> None:
     """
     Affiche la photo d'une recette dans un cadre de dimensions fixes
     (orientation d'origine conservée — portrait reste portrait, paysage
     reste paysage —, une marge est ajoutée si besoin pour uniformiser
     toutes les vignettes), avec le nom de la recette en étiquette orange
     superposée en bas de la photo.
+
+    Prend les octets bruts de la photo (colonne `image` en base, ou None) —
+    pas une image déjà décodée — afin que le calcul de la vignette
+    puisse être mis en cache par Streamlit.
     """
-    canvas = fit_image_to_canvas(image, size=size)
-    data_uri = image_to_data_uri(canvas)
+    data_uri = _cached_card_data_uri(name, image_bytes, size)
     st.markdown(
         f"""
         <div style="position:relative; width:100%; margin-bottom:0.6em;
@@ -458,6 +482,7 @@ def _load_placeholder_font(size: int = _PLACEHOLDER_FONT_SIZE):
         return ImageFont.load_default()
 
 
+@st.cache_data(show_spinner=False, max_entries=100, ttl=3600)
 def generate_placeholder_image(text: str, size=(800, 500)) -> Image.Image:
     """Crée une image simple (fond coloré + nom de la recette centré)."""
     palette = [
