@@ -73,7 +73,8 @@ if recent:
     recent_cols = st.columns(len(recent))
     for col, r in zip(recent_cols, recent):
         with col:
-            common.render_recipe_image_card(r["name"], r["image"])
+            img = common.get_recipe_image(r["name"], r["image"])
+            common.render_recipe_image_card(r["name"], img)
             st.caption(
                 f"👤 {r['created_by'] or 'inconnu'}  \n"
                 f"🗓️ {common.format_datetime(r['created_at'])}"
