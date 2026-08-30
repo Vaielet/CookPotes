@@ -130,8 +130,23 @@ def get_backend_label() -> str:
         return "PostgreSQL"
 
 
+@st.cache_resource(show_spinner=False)
 def init_db() -> None:
-    """Crée les tables si nécessaire, migre le schéma, et pré-remplit la base si elle est vide."""
+    """
+    Crée les tables si nécessaire, migre le schéma, et pré-remplit la base
+    si elle est vide.
+
+    Mise en cache avec @st.cache_resource : cette fonction est appelée en
+    tête de CHAQUE page, donc à CHAQUE interaction (Streamlit relance tout
+    le script à chaque clic). Sans ce cache, ses ~15 requêtes (CREATE
+    TABLE, ALTER TABLE, SELECT COUNT...) partaient vers Supabase à chaque
+    case cochée ou changement de nombre de personnes — c'est ce qui rendait
+    l'appli lente au moindre clic. @st.cache_resource garantit qu'elle ne
+    s'exécute réellement qu'une seule fois par démarrage du serveur
+    (partagé entre tou·tes les utilisateur·rices, ce qui est le bon
+    comportement : la création/migration du schéma n'a rien de propre à
+    une session).
+    """
     with get_conn() as conn:
         conn.execute(text("""
             CREATE TABLE IF NOT EXISTS recipes (
