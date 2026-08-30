@@ -55,7 +55,7 @@ with col1:
 with col2:
     if st.button("🍳 Ajouter une recette"):
         st.switch_page("pages/1_🍳_Ajouter_une_recette.py")
-    st.markdown("Partage tes recettes coup de coeur ou celles de ton grand-père. "
+    st.markdown("Partage tes recettes coup de coeur ou celles de ton grand-père, ta tante, etc. "
     "**Réservé aux comptes avec le statut éditeur·rice** —"
     "connecte-toi via le menu à gauche.")
 
