@@ -55,7 +55,7 @@ with col1:
 with col2:
     if st.button("🍳 Ajouter une recette"):
         st.switch_page("pages/1_🍳_Ajouter_une_recette.py")
-    st.markdown("Partage tes recettes coup de coeur ou celles de ton grand-père. "
+    st.markdown("Partage tes recettes coup de coeur ou celles de ton grand-père."
     "**Réservé aux comptes avec le statut éditeur·rice** —"
     "connectez-vous via le menu à gauche.")
 
@@ -64,14 +64,16 @@ st.markdown("Utilise les deux boutons ci-dessus ou le menu à gauche pour navigu
 
 recipes = db.get_all_recipes()
 
+col1, col2 = st.columns(2)
+col1.metric("Recettes enregistrées", len(recipes))
+
 recent = db.get_recent_recipes(limit=5)
 if recent:
-    st.subheader("Dernières recettes ajoutées")
+    st.subheader("🆕 Dernières recettes ajoutées")
     recent_cols = st.columns(len(recent))
     for col, r in zip(recent_cols, recent):
         with col:
-            img = common.get_recipe_image(r["name"], r["image"])
-            common.render_recipe_image_card(r["name"], img)
+            common.render_recipe_image_card(r["name"], r["image"])
             st.caption(
                 f"👤 {r['created_by'] or 'inconnu'}  \n"
                 f"🗓️ {common.format_datetime(r['created_at'])}"
