@@ -69,7 +69,7 @@ col1.metric("Recettes enregistrées", len(recipes))
 
 recent = db.get_recent_recipes(limit=5)
 if recent:
-    st.subheader("🆕 Dernières recettes ajoutées")
+    st.subheader("Dernières recettes ajoutées")
     recent_cols = st.columns(len(recent))
     for col, r in zip(recent_cols, recent):
         with col:
