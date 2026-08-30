@@ -163,7 +163,8 @@ for i, name in enumerate(names):
 
     with col:
         with st.container(border=True):
-            common.render_recipe_image_card(name, recipe["image"])
+            image = common.get_recipe_image(name, recipe["image"])
+            common.render_recipe_image_card(name, image)
 
             if recipe.get("tags"):
                 st.markdown(" ".join(f"`{t}`" for t in recipe["tags"]))
