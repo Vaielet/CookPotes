@@ -281,7 +281,7 @@ if st.button("+ Ajouter une section (ex : Sauce, Accompagnement)"):
 
 st.subheader("Instructions")
 instructions_text = st.text_area(
-    "Une étape par ligne",
+    "Une étape par ligne, sans numérotation",
     key="new_recipe_instructions",
     height=150,
     placeholder="Épluchez et coupez les légumes...\nFaites revenir dans l'huile d'olive...\n...",
