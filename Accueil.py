@@ -59,7 +59,7 @@ with col2:
     "**Réservé aux comptes avec le statut éditeur·rice** —"
     "connectez-vous via le menu à gauche.")
 
-st.markdown("Utilise les deux boutons ci-dessus ou le menu à gauche pour naviguer entre les pages (appuye sur les >> en haut à gauche si tu utilise un smartphone ou une tablette.")
+st.markdown("Utilise les deux boutons ci-dessus ou le menu à gauche pour naviguer entre les pages (appuye sur les >> en haut à gauche si tu utilises un smartphone ou une tablette.")
 
 
 recipes = db.get_all_recipes()
