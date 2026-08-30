@@ -313,11 +313,12 @@ def format_quantity(qty: Fraction) -> str:
 # ---------------------------------------------------------------------------
 
 # Décoder une photo (rotation EXIF, conversion RGB) coûte du CPU à chaque
-# appel. Comme le résultat ne dépend que du nom et des octets de l'image,
-# on le met en cache : Streamlit ré-exécute tout le script à chaque clic
-# (case à cocher, nombre de personnes...) et sans ce cache, la même photo
-# était redécodée à chaque fois, pour chaque recette affichée.
-@st.cache_data(show_spinner=False, max_entries=200, ttl=3600)
+# appel, mais cette fonction retourne un objet image PIL — un type d'objet
+# fragile à mettre en cache directement avec @st.cache_data (le cache doit
+# le sérialiser/copier à chaque lecture, ce qui peut échouer selon les
+# versions de Streamlit/Pillow). On ne la met donc PAS en cache elle-même ;
+# c'est plutôt `_cached_card_data_uri` ci-dessous (qui ne manipule que des
+# str/bytes, sans risque) qui absorbe tout le bénéfice de la mise en cache.
 def get_recipe_image(name: str, image_bytes: bytes | None) -> Image.Image:
     if image_bytes:
         try:
@@ -406,11 +407,13 @@ RECIPE_CARD_LABEL_COLOR = "#E8730C"
 def _cached_card_data_uri(name: str, image_bytes: bytes | None, size: tuple[int, int]) -> str:
     """
     Calcule (et met en cache) la vignette encodée en data URI pour une
-    recette donnée. Ce pipeline (redimensionnement + centrage sur un fond
-    uni + réencodage JPEG + base64) est le poste le plus coûteux du rendu
-    des cartes recette ; sans cache il tournait pour CHAQUE recette
-    affichée à CHAQUE rechargement de page (donc à chaque case cochée /
-    nombre de personnes modifié sur la page « Générer ma liste »).
+    recette donnée. Ce pipeline (décodage + redimensionnement + centrage
+    sur un fond uni + réencodage JPEG + base64) est le poste le plus
+    coûteux du rendu des cartes recette ; sans cache il tournait pour
+    CHAQUE recette affichée à CHAQUE rechargement de page (donc à chaque
+    case cochée / nombre de personnes modifié sur la page « Générer ma
+    liste »). Les paramètres (str, bytes, tuple) et le retour (str) sont
+    tous des types simples et sûrs à mettre en cache.
     """
     img = get_recipe_image(name, image_bytes)
     canvas = fit_image_to_canvas(img, size=size)
@@ -482,7 +485,10 @@ def _load_placeholder_font(size: int = _PLACEHOLDER_FONT_SIZE):
         return ImageFont.load_default()
 
 
-@st.cache_data(show_spinner=False, max_entries=100, ttl=3600)
+# Comme pour get_recipe_image, on ne met pas en cache cette fonction
+# elle-même (elle retourne un objet image PIL) : le bénéfice de cache est
+# capté en amont par `_cached_card_data_uri`, sans le risque de mettre en
+# cache un objet PIL directement.
 def generate_placeholder_image(text: str, size=(800, 500)) -> Image.Image:
     """Crée une image simple (fond coloré + nom de la recette centré)."""
     palette = [
