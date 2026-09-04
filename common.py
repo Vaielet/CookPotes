@@ -81,9 +81,8 @@ MAX_DESCRIPTION_CHARS = 300
 def header_logo():
     col1, col2, col3 = st.columns(3)
     with col2:
-        st.image("images/CookPotes_logo.jpg", width=300)
-        #st.markdown(f"**{r[L'app qui te simplifie la vie]}**")
-    
+        st.image("images/CookPotes_logo.png", output_format="PNG", width=1000)
+
 
 def format_datetime(iso_string: str | None) -> str:
     """Formate une date ISO stockée en base en un texte lisible (ex: 28/08/2026 à 14h32)."""
@@ -400,7 +399,7 @@ def image_to_data_uri(img: Image.Image, format: str = "JPEG", quality: int = 85)
 RECIPE_CARD_IMAGE_SIZE = (400, 260)
 
 # Fond orange uni de l'étiquette de nom superposée sur la photo.
-RECIPE_CARD_LABEL_COLOR = "#E8730C"
+RECIPE_CARD_LABEL_COLOR = "#ffbd3a"
 
 
 @st.cache_data(show_spinner=False, max_entries=200, ttl=3600)
@@ -437,11 +436,11 @@ def render_recipe_image_card(name: str, image_bytes: bytes | None, size: tuple[i
         f"""
         <div style="position:relative; width:100%; margin-bottom:0.6em;
                     border-radius:10px; overflow:hidden; border:1px solid #ddd;">
-          <img src="{data_uri}" style="width:100%; height:auto; display:block;" />
+          <img src="{data_uri}" style="width:100%; height:auto; display:block;padding-bottom:3em;" />
           <div style="position:absolute; bottom:0; left:0; right:0;
                       background:{RECIPE_CARD_LABEL_COLOR};
-                      color:white; padding:0.5em 0.7em; font-weight:600;
-                      font-size:1.05em; line-height:1.2;">
+                      color:white; padding:0.3em 0.7em; font-weight:600;
+                      font-size:1.05em; line-height:1.2; height:3em">
             {name}
           </div>
         </div>
