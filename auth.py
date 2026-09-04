@@ -101,7 +101,7 @@ def require_editor(
 
 
 def require_admin(
-    message: str = "🔒 Cette page est réservée aux administrateurs.",
+    message: str = "🔒 Cette page est réservée aux administrateur·rices.",
 ) -> None:
     """À appeler tout en haut d'une page réservée aux administrateurs."""
     render_sidebar_auth()
