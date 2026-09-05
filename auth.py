@@ -75,15 +75,55 @@ def render_sidebar_auth() -> None:
                 logout()
                 st.rerun()
         else:
-            with st.form("_auth_login_form", clear_on_submit=True):
-                username = st.text_input("Utilisateur·rice")
-                password = st.text_input("Mot de passe", type="password")
-                submitted = st.form_submit_button("Se connecter", use_container_width=True)
-            if submitted:
-                if login(username, password):
-                    st.rerun()
-                else:
-                    st.error("Identifiant ou mot de passe incorrect.")
+            login_tab, signup_tab = st.tabs(["Se connecter", "Créer un compte"])
+
+            with login_tab:
+                with st.form("_auth_login_form", clear_on_submit=True):
+                    username = st.text_input("Utilisateur·rice")
+                    password = st.text_input("Mot de passe", type="password")
+                    submitted = st.form_submit_button("Se connecter", use_container_width=True)
+                if submitted:
+                    if login(username, password):
+                        st.rerun()
+                    else:
+                        st.error("Identifiant ou mot de passe incorrect.")
+
+            with signup_tab:
+                st.caption(
+                    "Tu recevras directement le statut éditeur·rice, ce qui "
+                    "te permettra d'ajouter et de modifier des recettes."
+                )
+                with st.form("_auth_signup_form", clear_on_submit=True):
+                    new_username = st.text_input("Choisis un identifiant")
+                    new_password = st.text_input(
+                        "Choisis un mot de passe", type="password",
+                        help="6 caractères minimum.",
+                    )
+                    new_password_confirm = st.text_input(
+                        "Confirme le mot de passe", type="password",
+                    )
+                    signup_submitted = st.form_submit_button(
+                        "Créer mon compte", use_container_width=True,
+                    )
+                if signup_submitted:
+                    username_clean = new_username.strip()
+                    if not username_clean or not new_password:
+                        st.error("L'identifiant et le mot de passe sont obligatoires.")
+                    elif len(new_password) < 6:
+                        st.error("Le mot de passe doit contenir au moins 6 caractères.")
+                    elif new_password != new_password_confirm:
+                        st.error("Les deux mots de passe ne correspondent pas.")
+                    else:
+                        try:
+                            db.create_user(
+                                username_clean, new_password,
+                                is_editor=True, is_admin=False,
+                            )
+                        except db.IntegrityError:
+                            st.error(f"L'identifiant « {username_clean} » est déjà utilisé.")
+                        else:
+                            login(username_clean, new_password)
+                            st.rerun()
 
 
 def require_editor(

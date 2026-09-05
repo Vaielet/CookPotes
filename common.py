@@ -81,7 +81,7 @@ MAX_DESCRIPTION_CHARS = 300
 def header_logo():
     col1, col2, col3 = st.columns(3)
     with col2:
-        st.image("images/CookPotes_logo.png", output_format="PNG", width=1000)
+        st.image("images/CookPotes_logo_02.png", output_format="PNG", width=1000)
 
 
 def format_datetime(iso_string: str | None) -> str:
@@ -620,9 +620,9 @@ def _escape_applescript(text: str) -> str:
 # que le PDF ait l'air de sortir du même site plutôt que d'un générateur
 # générique.
 
-PDF_ORANGE_HEX = "#E8730C"
+PDF_ORANGE_HEX = "#3bb6b0"
 PDF_ORANGE = colors.HexColor(PDF_ORANGE_HEX)
-PDF_ORANGE_SOFT = colors.HexColor("#F8E6D3")   # fond zébré très léger des tableaux
+PDF_ORANGE_SOFT = colors.HexColor("#EEE7DA")   # fond zébré très léger des tableaux
 PDF_BEIGE = colors.HexColor("#EEE7DA")          # fond de la carte d'en-tête (identique au fond photo)
 PDF_INK = colors.HexColor("#3A2E22")            # texte principal, brun chaud plutôt que noir pur
 PDF_GREY = colors.HexColor("#8A7F72")           # texte secondaire (sous-titres, pied de page)

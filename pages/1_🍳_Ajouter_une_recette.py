@@ -23,8 +23,6 @@ import auth
 import db
 import common
 
-st.set_page_config(page_title="Ajouter / modifier une recette", page_icon="🍳", layout="wide")
-
 db.init_db()
 
 common.header_logo()

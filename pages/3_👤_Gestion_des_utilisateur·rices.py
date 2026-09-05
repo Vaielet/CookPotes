@@ -13,8 +13,6 @@ import db
 
 import common
 
-st.set_page_config(page_title="Gestion des utilisateur·rices", page_icon="👤", layout="wide")
-
 db.init_db()
 
 common.header_logo()
