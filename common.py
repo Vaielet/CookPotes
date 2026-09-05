@@ -81,7 +81,7 @@ MAX_DESCRIPTION_CHARS = 300
 def header_logo():
     col1, col2, col3 = st.columns(3)
     with col2:
-        st.image("images/CookPotes_logo_02.png", output_format="PNG", width=1000)
+        st.image("images/CookPotes_logo.png", output_format="PNG", width=1000)
 
 
 def format_datetime(iso_string: str | None) -> str:
@@ -393,6 +393,28 @@ def image_to_data_uri(img: Image.Image, format: str = "JPEG", quality: int = 85)
     return f"data:{mime};base64,{encoded}"
 
 
+def round_image_corners(
+    img: Image.Image,
+    radius: int,
+    background: tuple[int, int, int] = (255, 255, 255),
+) -> Image.Image:
+    """
+    Renvoie une copie de `img` avec les 4 coins arrondis, comblés par
+    `background` (utilisé pour les photos du carnet PDF : le format JPEG ne
+    supportant pas la transparence, on "peint" directement la couleur de
+    page dans les coins découpés plutôt que de vraiment les rendre
+    transparents).
+    """
+    img = img.convert("RGB")
+    mask = Image.new("L", img.size, 0)
+    ImageDraw.Draw(mask).rounded_rectangle(
+        [0, 0, img.size[0] - 1, img.size[1] - 1], radius=radius, fill=255
+    )
+    canvas = Image.new("RGB", img.size, background)
+    canvas.paste(img, (0, 0), mask)
+    return canvas
+
+
 # Dimensions fixes des vignettes recette, utilisées partout où une photo de
 # recette est affichée (page d'accueil, générateur de liste, ...), pour un
 # rendu homogène sur toute l'application.
@@ -620,13 +642,26 @@ def _escape_applescript(text: str) -> str:
 # que le PDF ait l'air de sortir du même site plutôt que d'un générateur
 # générique.
 
-PDF_ORANGE_HEX = "#3bb6b0"
-PDF_ORANGE = colors.HexColor(PDF_ORANGE_HEX)
-PDF_ORANGE_SOFT = colors.HexColor("#EEE7DA")   # fond zébré très léger des tableaux
-PDF_BEIGE = colors.HexColor("#EEE7DA")          # fond de la carte d'en-tête (identique au fond photo)
-PDF_INK = colors.HexColor("#3A2E22")            # texte principal, brun chaud plutôt que noir pur
-PDF_GREY = colors.HexColor("#8A7F72")           # texte secondaire (sous-titres, pied de page)
-PDF_LINE = colors.HexColor("#E3D9C8")           # filets/grilles discrets
+# ---------------------------------------------------------------------------
+# Charte graphique du PDF — alignée sur le logo CookPotes.
+# ---------------------------------------------------------------------------
+PDF_RED_HEX = "#ff5951"
+PDF_TEAL_HEX = "#3bb6b0"
+PDF_YELLOW_HEX = "#ffbd3a"
+PDF_NAVY_HEX = "#24324f"
+
+PDF_RED = colors.HexColor(PDF_RED_HEX)
+PDF_TEAL = colors.HexColor(PDF_TEAL_HEX)
+PDF_YELLOW = colors.HexColor(PDF_YELLOW_HEX)
+PDF_NAVY = colors.HexColor(PDF_NAVY_HEX)
+
+PDF_INK = PDF_NAVY                                # texte principal
+PDF_GREY = colors.HexColor("#7C879C")             # texte secondaire (gris-bleu, cohérent avec le navy)
+PDF_LINE = colors.HexColor("#E7EAF1")             # filets/grilles discrets
+
+PDF_RED_SOFT = colors.HexColor("#FFEDEC")         # fond très léger rouge (zébrage tableau ingrédients)
+PDF_TEAL_SOFT = colors.HexColor("#E9F7F6")        # fond très léger teal (badges tags)
+PDF_NAVY_SOFT = colors.HexColor("#EEF1F6")        # fond très léger navy (carte d'en-tête, sommaire)
 
 # Chaque recette tient normalement sur une seule page (marges réduites,
 # typographie compacte). Une recette avec beaucoup d'ingrédients ou
@@ -637,29 +672,88 @@ PDF_MARGIN = 1.6 * cm
 
 
 def _pdf_footer(canvas, doc) -> None:
-    """Pied de page discret sur chaque page : liseré orange + nom de l'app + numéro de page."""
+    """Pied de page sur chaque page : liseré tricolore (rouge-teal-jaune) + nom de l'app + numéro de page."""
     canvas.saveState()
     width, _ = A4
-    canvas.setStrokeColor(PDF_ORANGE)
-    canvas.setLineWidth(1)
-    canvas.line(PDF_MARGIN, 1.25 * cm, width - PDF_MARGIN, 1.25 * cm)
+    usable = width - 2 * PDF_MARGIN
+    y = 1.25 * cm
+    band_colors = (PDF_RED, PDF_TEAL, PDF_YELLOW)
+    seg_width = usable / len(band_colors)
+    for i, band_color in enumerate(band_colors):
+        canvas.setFillColor(band_color)
+        canvas.rect(PDF_MARGIN + i * seg_width, y, seg_width, 2.2, stroke=0, fill=1)
+    canvas.setFont("Helvetica-Bold", 8)
+    canvas.setFillColor(PDF_NAVY)
+    canvas.drawString(PDF_MARGIN, 0.75 * cm, "CookPotes")
     canvas.setFont("Helvetica", 8)
     canvas.setFillColor(PDF_GREY)
-    canvas.drawString(PDF_MARGIN, 0.8 * cm, "CookPotes")
-    canvas.drawRightString(width - PDF_MARGIN, 0.8 * cm, f"Page {doc.page}")
+    canvas.drawRightString(width - PDF_MARGIN, 0.75 * cm, f"Page {doc.page}")
     canvas.restoreState()
 
 
-def _underline_heading(text_str: str, style: ParagraphStyle, width: float) -> Table:
-    """Titre de section avec un filet orange en-dessous, sur toute la largeur donnée."""
+def _underline_heading(text_str: str, style: ParagraphStyle, width: float, accent: colors.Color) -> Table:
+    """Titre de section avec un filet coloré en-dessous, sur toute la largeur donnée."""
     t = Table([[Paragraph(text_str, style)]], colWidths=[width])
     t.setStyle(TableStyle([
-        ("LINEBELOW", (0, 0), (-1, -1), 1.2, PDF_ORANGE),
+        ("LINEBELOW", (0, 0), (-1, -1), 1.6, accent),
         ("TOPPADDING", (0, 0), (-1, -1), 0),
-        ("BOTTOMPADDING", (0, 0), (-1, -1), 3),
+        ("BOTTOMPADDING", (0, 0), (-1, -1), 4),
         ("LEFTPADDING", (0, 0), (-1, -1), 0),
         ("RIGHTPADDING", (0, 0), (-1, -1), 0),
     ]))
+    return t
+
+
+def _chip(text: str, bg_hex: str, text_hex: str = "#FFFFFF") -> Table:
+    """Petit badge arrondi façon appli mobile (nombre de personnes, temps, tag...)."""
+    style = ParagraphStyle(
+        "Chip", fontName="Helvetica-Bold", fontSize=8.5, leading=10,
+        textColor=colors.HexColor(text_hex), alignment=TA_CENTER,
+    )
+    t = Table([[Paragraph(html.escape(text), style)]])
+    t.setStyle(TableStyle([
+        ("BACKGROUND", (0, 0), (-1, -1), colors.HexColor(bg_hex)),
+        ("ROUNDEDCORNERS", [8, 8, 8, 8]),
+        ("LEFTPADDING", (0, 0), (-1, -1), 9),
+        ("RIGHTPADDING", (0, 0), (-1, -1), 9),
+        ("TOPPADDING", (0, 0), (-1, -1), 4),
+        ("BOTTOMPADDING", (0, 0), (-1, -1), 4),
+    ]))
+    return t
+
+
+def _chip_row(chips: list[Table], gap_pt: float = 6) -> Table:
+    """Aligne plusieurs badges (voir `_chip`) sur une ligne, avec un petit espace entre eux."""
+    row = Table([chips])
+    cmds = [
+        ("LEFTPADDING", (0, 0), (-1, -1), 0),
+        ("TOPPADDING", (0, 0), (-1, -1), 0),
+        ("BOTTOMPADDING", (0, 0), (-1, -1), 0),
+        ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+        ("ALIGN", (0, 0), (-1, -1), "LEFT"),
+    ]
+    last = len(chips) - 1
+    for i in range(len(chips)):
+        cmds.append(("RIGHTPADDING", (i, 0), (i, 0), 0 if i == last else gap_pt))
+    row.setStyle(TableStyle(cmds))
+    return row
+
+
+def _accent_stripe(width_cm: float = 3.6, height_pt: float = 5) -> Table:
+    """Petit bandeau tricolore décoratif (écho des pastilles du logo), centré."""
+    seg_w = width_cm * cm / 3
+    t = Table([["", "", ""]], colWidths=[seg_w] * 3, rowHeights=[height_pt])
+    t.setStyle(TableStyle([
+        ("BACKGROUND", (0, 0), (0, 0), PDF_RED),
+        ("BACKGROUND", (1, 0), (1, 0), PDF_TEAL),
+        ("BACKGROUND", (2, 0), (2, 0), PDF_YELLOW),
+        ("ROUNDEDCORNERS", [height_pt, height_pt, height_pt, height_pt]),
+        ("TOPPADDING", (0, 0), (-1, -1), 0),
+        ("BOTTOMPADDING", (0, 0), (-1, -1), 0),
+        ("LEFTPADDING", (0, 0), (-1, -1), 1),
+        ("RIGHTPADDING", (0, 0), (-1, -1), 1),
+    ]))
+    t.hAlign = "CENTER"
     return t
 
 
@@ -678,39 +772,29 @@ def build_recipe_booklet_pdf(
 
     title_style = ParagraphStyle(
         "RecipeTitle", parent=styles["Title"], fontName="Helvetica-Bold",
-        fontSize=19, leading=22, textColor=PDF_ORANGE, alignment=0,
-        spaceAfter=2,
-    )
-    subtitle_style = ParagraphStyle(
-        "Subtitle", parent=styles["Normal"], fontSize=9.5, leading=13,
-        textColor=PDF_GREY, spaceAfter=2,
-    )
-    tags_style = ParagraphStyle(
-        "Tags", parent=styles["Normal"], fontSize=8.5, leading=12,
-        textColor=PDF_ORANGE, spaceAfter=2,
-    )
-    description_style = ParagraphStyle(
-        "Description", parent=styles["Italic"], fontSize=9.5, leading=12.5,
-        textColor=PDF_INK, spaceBefore=3,
+        fontSize=20, leading=23, textColor=PDF_NAVY, alignment=0,
+        spaceAfter=0,
     )
     section_style = ParagraphStyle(
         "Section", parent=styles["Heading2"], fontName="Helvetica-Bold",
-        fontSize=12.5, textColor=PDF_ORANGE, spaceBefore=0, spaceAfter=0,
-        leading=15,
+        fontSize=13, spaceBefore=0, spaceAfter=0, leading=16,
     )
+    section_style_red = ParagraphStyle("SectionRed", parent=section_style, textColor=PDF_RED)
+    section_style_teal = ParagraphStyle("SectionTeal", parent=section_style, textColor=PDF_TEAL)
     subsection_style = ParagraphStyle(
         "SubSection", parent=styles["Heading3"], fontName="Helvetica-Bold",
-        fontSize=10, spaceBefore=6, spaceAfter=3, textColor=PDF_INK,
+        fontSize=10, spaceBefore=6, spaceAfter=3, textColor=PDF_NAVY,
     )
     body_style = ParagraphStyle(
-        "Body", parent=styles["Normal"], fontSize=9.5, leading=13, textColor=PDF_INK,
+        "Body", parent=styles["Normal"], fontSize=9.5, leading=13.5, textColor=PDF_INK,
     )
     cover_title_style = ParagraphStyle(
-        "CoverTitle", parent=styles["Title"], fontSize=26, alignment=TA_CENTER,
-        textColor=PDF_ORANGE,
+        "CoverTitle", parent=styles["Title"], fontName="Helvetica-Bold",
+        fontSize=27, alignment=TA_CENTER, textColor=PDF_NAVY,
     )
     cover_item_style = ParagraphStyle(
-        "CoverItem", parent=styles["Normal"], fontSize=11.5, leading=19, textColor=PDF_INK,
+        "CoverItem", parent=styles["Normal"], fontName="Helvetica-Bold",
+        fontSize=12, leading=15, textColor=PDF_NAVY,
     )
 
     CONTENT_WIDTH = A4[0] - 2 * PDF_MARGIN
@@ -721,24 +805,35 @@ def build_recipe_booklet_pdf(
     try:
         logo = RLImage("images/CookPotes_logo_with_subtitle.png", width=6.5 * cm, height=6.5 * cm)
         logo.hAlign = "CENTER"
-        story.append(Spacer(1, 1.3 * cm))
+        story.append(Spacer(1, 1.1 * cm))
         story.append(logo)
-        story.append(Spacer(1, 1.8 * cm))
+        story.append(Spacer(1, 0.6 * cm))
     except Exception:
-        story.append(Spacer(1, 4 * cm))
+        story.append(Spacer(1, 3.5 * cm))
 
     story.append(Paragraph(html.escape(title), cover_title_style))
-    story.append(Spacer(1, 1.2 * cm))
-    sommaire_items = [
-        ListItem(
-            Paragraph(f"<b>{html.escape(c.name)}</b> — {c.people} personne(s)", cover_item_style),
-            spaceAfter=4,
+    story.append(Spacer(1, 8))
+    story.append(_accent_stripe())
+    story.append(Spacer(1, 1.4 * cm))
+
+    CHIP_COL_WIDTH = 3.4 * cm
+    for c in choices:
+        row_table = Table(
+            [[Paragraph(html.escape(c.name), cover_item_style), _chip(f"{c.people} personne(s)", PDF_RED_HEX)]],
+            colWidths=[CONTENT_WIDTH - CHIP_COL_WIDTH, CHIP_COL_WIDTH],
         )
-        for c in choices
-    ]
-    story.append(ListFlowable(
-        sommaire_items, bulletType="bullet", bulletColor=PDF_ORANGE, bulletFontSize=11,
-    ))
+        row_table.setStyle(TableStyle([
+            ("BACKGROUND", (0, 0), (-1, -1), PDF_NAVY_SOFT),
+            ("ROUNDEDCORNERS", [10, 10, 10, 10]),
+            ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+            ("ALIGN", (1, 0), (1, 0), "RIGHT"),
+            ("LEFTPADDING", (0, 0), (0, 0), 14),
+            ("RIGHTPADDING", (1, 0), (1, 0), 14),
+            ("TOPPADDING", (0, 0), (-1, -1), 9),
+            ("BOTTOMPADDING", (0, 0), (-1, -1), 9),
+        ]))
+        story.append(row_table)
+        story.append(Spacer(1, 9))
     story.append(PageBreak())
 
     # --- Une page par recette ---
@@ -765,49 +860,43 @@ def build_recipe_booklet_pdf(
         ratio = Fraction(choice.people, base)
 
         pil_image = get_recipe_image(choice.name, recipe["image"])
-        canvas_image = fit_image_to_canvas(pil_image, size=_photo_canvas_size, background=(238, 231, 218))
+        canvas_image = fit_image_to_canvas(pil_image, size=_photo_canvas_size, background=(255, 255, 255))
+        canvas_image = round_image_corners(canvas_image, radius=int(min(_photo_canvas_size) * 0.07), background=(255, 255, 255))
         img_buffer = io.BytesIO()
         canvas_image.save(img_buffer, format="JPEG", quality=90)
         img_buffer.seek(0)
         rl_image = RLImage(img_buffer, width=PHOTO_WIDTH_CM * cm, height=PHOTO_HEIGHT_CM * cm)
         rl_image.hAlign = "CENTER"
 
-        # --- Carte d'en-tête : titre + infos clés, fond beige + liseré orange ---
-        header_flow = [Paragraph(html.escape(choice.name), title_style)]
+        # --- Carte d'en-tête : titre + badges (personnes/temps) ---
+        header_flow = [Paragraph(html.escape(choice.name), title_style), Spacer(1, 7)]
 
-        subtitle_parts = [f"{choice.people} personne(s)"]
         prep = format_time_minutes(recipe.get("prep_time_minutes"))
         cook = format_time_minutes(recipe.get("cook_time_minutes"))
+        info_chips = [_chip(f"{choice.people} personne(s)", PDF_RED_HEX)]
         if prep:
-            subtitle_parts.append(f"Préparation {prep}")
+            info_chips.append(_chip(f"Préparation {prep}", PDF_TEAL_HEX))
         if cook:
-            subtitle_parts.append(f"Cuisson {cook}")
-        header_flow.append(Paragraph(" &nbsp;·&nbsp; ".join(subtitle_parts), subtitle_style))
-
-        if recipe.get("tags"):
-            tags_txt = " &nbsp;&nbsp; ".join(html.escape(t) for t in recipe["tags"])
-            header_flow.append(Paragraph(tags_txt, tags_style))
-
-        if recipe.get("description"):
-            header_flow.append(Paragraph(html.escape(recipe["description"]), description_style))
+            info_chips.append(_chip(f"Cuisson {cook}", PDF_YELLOW_HEX, text_hex=PDF_NAVY_HEX))
+        header_flow.append(_chip_row(info_chips))
 
         header_table = Table([[header_flow]], colWidths=[CONTENT_WIDTH])
         header_table.setStyle(TableStyle([
-            ("BACKGROUND", (0, 0), (-1, -1), PDF_BEIGE),
-            ("LINEBEFORE", (0, 0), (0, -1), 4, PDF_ORANGE),
-            ("LEFTPADDING", (0, 0), (-1, -1), 12),
-            ("RIGHTPADDING", (0, 0), (-1, -1), 12),
-            ("TOPPADDING", (0, 0), (-1, -1), 8),
-            ("BOTTOMPADDING", (0, 0), (-1, -1), 8),
+            ("BACKGROUND", (0, 0), (-1, -1), PDF_NAVY_SOFT),
+            ("ROUNDEDCORNERS", [14, 14, 14, 14]),
+            ("LEFTPADDING", (0, 0), (-1, -1), 14),
+            ("RIGHTPADDING", (0, 0), (-1, -1), 14),
+            ("TOPPADDING", (0, 0), (-1, -1), 12),
+            ("BOTTOMPADDING", (0, 0), (-1, -1), 12),
         ]))
         story.append(header_table)
-        story.append(Spacer(1, 9))
+        story.append(Spacer(1, 10))
 
         # --- Ingrédients : construits pour une largeur donnée (réutilisé
         # pour les deux mises en page ci-dessous) ---
         def _build_ingredients_flow(width: float) -> list:
-            flow = [_underline_heading("Ingrédients", section_style, width)]
-            flow.append(Spacer(1, 4))
+            flow = [_underline_heading("Ingrédients", section_style_red, width, PDF_RED)]
+            flow.append(Spacer(1, 5))
             multi_section = len(recipe["ingredients"]) > 1
             for section_name, ingredients in recipe["ingredients"].items():
                 if multi_section:
@@ -829,20 +918,22 @@ def build_recipe_booklet_pdf(
                     repeatRows=1,
                 )
                 ing_table.setStyle(TableStyle([
-                    ("BACKGROUND", (0, 0), (-1, 0), PDF_ORANGE),
+                    ("BACKGROUND", (0, 0), (-1, 0), PDF_RED),
                     ("TEXTCOLOR", (0, 0), (-1, 0), colors.white),
                     ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
+                    ("ROUNDEDCORNERS", [6, 6, 6, 6]),
                     ("FONTSIZE", (0, 0), (-1, -1), 8.5),
-                    ("ROWBACKGROUNDS", (0, 1), (-1, -1), [colors.white, PDF_ORANGE_SOFT]),
-                    ("GRID", (0, 0), (-1, -1), 0.4, PDF_LINE),
+                    ("TEXTCOLOR", (0, 1), (-1, -1), PDF_INK),
+                    ("ROWBACKGROUNDS", (0, 1), (-1, -1), [colors.white, PDF_RED_SOFT]),
+                    ("LINEBELOW", (0, 0), (-1, -2), 0.4, PDF_LINE),
                     ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
-                    ("LEFTPADDING", (0, 0), (-1, -1), 5),
-                    ("RIGHTPADDING", (0, 0), (-1, -1), 5),
-                    ("TOPPADDING", (0, 0), (-1, -1), 3),
-                    ("BOTTOMPADDING", (0, 0), (-1, -1), 3),
+                    ("LEFTPADDING", (0, 0), (-1, -1), 6),
+                    ("RIGHTPADDING", (0, 0), (-1, -1), 6),
+                    ("TOPPADDING", (0, 0), (-1, -1), 4),
+                    ("BOTTOMPADDING", (0, 0), (-1, -1), 4),
                 ]))
                 flow.append(ing_table)
-                flow.append(Spacer(1, 5))
+                flow.append(Spacer(1, 6))
             return flow
 
         # Un tableau photo+ingrédients côte à côte n'a qu'UNE seule ligne :
@@ -863,7 +954,6 @@ def build_recipe_booklet_pdf(
             )
             layout_table.setStyle(TableStyle([
                 ("VALIGN", (0, 0), (-1, -1), "TOP"),
-                ("BOX", (0, 0), (0, 0), 0.6, PDF_LINE),
                 ("LEFTPADDING", (0, 0), (0, -1), 0),
                 ("RIGHTPADDING", (0, 0), (0, -1), 0),
                 ("LEFTPADDING", (1, 0), (1, -1), GUTTER_PT),
@@ -872,29 +962,29 @@ def build_recipe_booklet_pdf(
                 ("BOTTOMPADDING", (0, 0), (-1, -1), 0),
             ]))
             story.append(layout_table)
-            story.append(Spacer(1, 10))
+            story.append(Spacer(1, 12))
         else:
             # --- Mise en page empilée pour les grosses recettes ---
             img_buffer.seek(0)  # rl_image a déjà consommé la lecture du buffer une première fois
             small_image = RLImage(img_buffer, width=4.2 * cm, height=3.5 * cm)
             small_image.hAlign = "LEFT"
             story.append(small_image)
-            story.append(Spacer(1, 8))
+            story.append(Spacer(1, 9))
             for flowable in _build_ingredients_flow(CONTENT_WIDTH):
                 story.append(flowable)
-            story.append(Spacer(1, 4))
+            story.append(Spacer(1, 5))
 
         # --- Étapes de préparation, sous la photo et les ingrédients ---
         instructions = recipe.get("instructions")
         if instructions:
-            story.append(_underline_heading("Préparation", section_style, CONTENT_WIDTH))
-            story.append(Spacer(1, 4))
+            story.append(_underline_heading("Préparation", section_style_teal, CONTENT_WIDTH, PDF_TEAL))
+            story.append(Spacer(1, 5))
             step_items = [
-                ListItem(Paragraph(html.escape(step), body_style), leftIndent=6, spaceAfter=4)
+                ListItem(Paragraph(html.escape(step), body_style), leftIndent=6, spaceAfter=5)
                 for step in instructions
             ]
             story.append(ListFlowable(
-                step_items, bulletType="1", bulletColor=PDF_ORANGE, bulletFontName="Helvetica-Bold",
+                step_items, bulletType="1", bulletColor=PDF_TEAL, bulletFontName="Helvetica-Bold",
             ))
 
         story.append(PageBreak())

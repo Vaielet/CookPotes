@@ -36,7 +36,6 @@ st.set_page_config(
     layout="wide",
 )
 
-
 def home_page() -> None:
     db.init_db()
     auth.render_sidebar_auth()
@@ -95,9 +94,8 @@ Bienvenue ! Cette application te permet de :
 
 pages = [
     st.Page(home_page, title="Accueil", icon="🏠", default=True),
-    st.Page("pages/1_🍳_Ajouter_une_recette.py", title="Ajouter une recette", icon="🍳"),
     st.Page("pages/2_🛒_Générer_ma_liste.py", title="Générer ma liste", icon="🛒"),
-]
+    st.Page("pages/1_🍳_Ajouter_une_recette.py", title="Ajouter une recette", icon="🍳"),]
 
 if auth.is_admin():
     pages.append(
