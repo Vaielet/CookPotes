@@ -11,7 +11,9 @@ import base64
 import html
 import io
 import platform
+import re
 import subprocess
+import unicodedata
 from dataclasses import dataclass, field
 from collections import defaultdict
 from datetime import datetime
@@ -128,124 +130,281 @@ def normalize_unit(quantity, unit):
     return Fraction(quantity).limit_denominator(100), unit
 
 
+
 # ---------------------------------------------------------------------------
-# Classement des ingrédients par rayon
+# Base de produits d'épicerie : nom canonique, synonymes, rayon.
 # ---------------------------------------------------------------------------
-
-INGREDIENT_CATEGORIES = {
-    # Fruits et légumes
-    "courgette": "Fruits et légumes", "carotte": "Fruits et légumes",
-    "oignon": "Fruits et légumes", "oignon rouge": "Fruits et légumes",
-    "échalote": "Fruits et légumes", "ail": "Fruits et légumes",
-    "piment": "Fruits et légumes", "poivron": "Fruits et légumes",
-    "poivron rouge": "Fruits et légumes", "poivron vert": "Fruits et légumes",
-    "poivron jaune": "Fruits et légumes", "tomate": "Fruits et légumes",
-    "tomates cerises": "Fruits et légumes", "concombre": "Fruits et légumes",
-    "laitue romaine": "Fruits et légumes", "salade": "Fruits et légumes",
-    "roquette": "Fruits et légumes", "épinards": "Fruits et légumes",
-    "brocoli": "Fruits et légumes", "chou-fleur": "Fruits et légumes",
-    "chou blanc": "Fruits et légumes", "courge": "Fruits et légumes",
-    "aubergine": "Fruits et légumes", "champignons": "Fruits et légumes",
-    "haricots verts": "Fruits et légumes", "petits pois": "Fruits et légumes",
-    "maïs": "Fruits et légumes", "pommes de terre": "Fruits et légumes",
-    "patate douce": "Fruits et légumes", "radis": "Fruits et légumes",
-    "avocat": "Fruits et légumes", "citron": "Fruits et légumes",
-    "citron vert": "Fruits et légumes", "orange": "Fruits et légumes",
-    "pomme": "Fruits et légumes", "poire": "Fruits et légumes",
-    "banane": "Fruits et légumes", "ananas": "Fruits et légumes",
-    "mangue": "Fruits et légumes", "fraise": "Fruits et légumes",
-    "framboise": "Fruits et légumes", "myrtille": "Fruits et légumes",
-    "persil": "Fruits et légumes", "ciboulette": "Fruits et légumes",
-    "basilic frais": "Fruits et légumes", "coriandre": "Fruits et légumes",
-    "menthe": "Fruits et légumes", "thym": "Fruits et légumes",
-    "romarin": "Fruits et légumes", "poireaux": "Fruits et légumes",
-
-    # Boucherie
-    "poulet": "Boucherie", "poulet entier": "Boucherie",
-    "blanc de poulet": "Boucherie", "cuisse de poulet": "Boucherie",
-    "dinde": "Boucherie", "steak haché": "Boucherie",
-    "bœuf haché": "Boucherie", "bœuf": "Boucherie",
-    "rôti de bœuf": "Boucherie", "porc": "Boucherie",
-    "filet mignon": "Boucherie", "côte de porc": "Boucherie",
-    "agneau": "Boucherie", "veau": "Boucherie", "jambon": "Boucherie",
-    "lardons": "Boucherie", "bacon": "Boucherie",
-    "chair à saucisse": "Boucherie", "saucisse": "Boucherie",
-    "merguez": "Boucherie", "chorizo": "Boucherie",
-
-    # Poissonnerie
-    "saumon": "Poissonnerie", "cabillaud": "Poissonnerie",
-    "thon frais": "Poissonnerie", "thon": "Poissonnerie",
-    "crevettes": "Poissonnerie", "moules": "Poissonnerie",
-    "calamars": "Poissonnerie", "filet de poisson": "Poissonnerie",
-
-    # Crèmerie
-    "lait": "Crèmerie", "beurre": "Crèmerie", "crème fraîche": "Crèmerie",
-    "crème liquide": "Crèmerie", "yaourt": "Crèmerie",
-    "yaourt grec nature": "Crèmerie", "fromage râpé": "Crèmerie",
-    "parmesan": "Crèmerie", "mozzarella": "Crèmerie", "cheddar": "Crèmerie",
-    "emmental": "Crèmerie", "comté": "Crèmerie",
-    "fromage de chèvre frais": "Crèmerie", "feta": "Crèmerie",
-    "ricotta": "Crèmerie", "mascarpone": "Crèmerie", "œuf": "Crèmerie",
-    "œufs": "Crèmerie",
-
-    # Boulangerie
-    "pain": "Boulangerie", "baguette": "Boulangerie",
-    "pain de mie": "Boulangerie", "tortilla": "Boulangerie",
-    "wrap": "Boulangerie", "pâte brisée": "Boulangerie",
-    "pâte feuilletée": "Boulangerie", "croûtons": "Boulangerie",
-    "chapelure": "Boulangerie",
-
-    # Épicerie salée
-    "spaghetti": "Épicerie", "pâtes": "Épicerie", "penne": "Épicerie",
-    "tagliatelles": "Épicerie", "riz": "Épicerie", "riz basmati": "Épicerie",
-    "riz complet": "Épicerie", "riz à risotto": "Épicerie",
-    "semoule": "Épicerie", "quinoa": "Épicerie", "boulgour": "Épicerie",
-    "farine": "Épicerie", "maïzena": "Épicerie", "huile d'olive": "Épicerie",
-    "huile de tournesol": "Épicerie", "vinaigre balsamique": "Épicerie",
-    "vinaigre": "Épicerie", "moutarde": "Épicerie", "ketchup": "Épicerie",
-    "mayonnaise": "Épicerie", "mayonnaise allégée": "Épicerie",
-    "sauce soja": "Épicerie", "sauce piquante": "Épicerie",
-    "sauce césar": "Épicerie", "pâte de curry": "Épicerie",
-    "lait de coco": "Épicerie", "crème de soja": "Épicerie",
-    "bouillon de légumes": "Épicerie", "bouillon de volaille": "Épicerie",
-    "pois chiches": "Épicerie", "lentilles": "Épicerie",
-    "haricots rouges": "Épicerie", "haricots blancs": "Épicerie",
-    "tomates concassées": "Épicerie", "purée de tomate": "Épicerie",
-    "olives vertes": "Épicerie", "olives noires": "Épicerie",
-    "thon en boîte": "Épicerie", "maïs en boîte": "Épicerie",
-
-    # Épices et condiments
-    "sel": "Épices", "poivre": "Épices", "paprika": "Épices",
-    "paprika doux": "Épices", "cumin": "Épices", "curcuma": "Épices",
-    "curry": "Épices", "gingembre": "Épices", "origan": "Épices",
-    "herbes de provence": "Épices", "herbes italiennes sèchées": "Épices",
-    "ail en poudre": "Épices", "cannelle": "Épices", "muscade": "Épices",
-
-    # Surgelés
-    "petits pois surgelés": "Surgelés", "épinards surgelés": "Surgelés",
-    "frites surgelées": "Surgelés", "mélange de légumes surgelés": "Surgelés",
-
-    # Boissons
-    "eau pétillante": "Boissons", "jus d'orange": "Boissons",
-    "cola": "Boissons", "bière": "Boissons", "vin blanc": "Boissons",
-    "vin rouge": "Boissons",
-
-    # Pâtisserie / Sucré
-    "sucre": "Pâtisserie", "sucre roux": "Pâtisserie",
-    "sucre glace": "Pâtisserie", "cassonade": "Pâtisserie",
-    "chocolat noir": "Pâtisserie", "chocolat au lait": "Pâtisserie",
-    "cacao": "Pâtisserie", "levure chimique": "Pâtisserie",
-    "sucre vanillé": "Pâtisserie", "miel": "Pâtisserie",
-    "confiture": "Pâtisserie",
-}
+#
+# Quand une recette est encodée (page « Ajouter une recette »), chaque nom
+# d'ingrédient tapé librement est comparé aux synonymes ci-dessous et
+# remplacé par le nom canonique correspondant (voir `match_product`) — ça
+# évite de se retrouver avec "courgette" et "courgettes vertes" comme deux
+# lignes séparées dans la liste de courses. Le rayon (catégorie) sert à
+# regrouper la liste de courses par zone du magasin.
+#
+# La liste ci-dessous n'est que la donnée de DÉPART : au premier lancement,
+# db.py la copie dans une table `products` sur Supabase (voir
+# `db._seed_default_products_if_empty`). C'est ensuite CETTE table, pas
+# cette liste Python, qui fait foi — `match_product` interroge la base à
+# chaque appel (avec mise en cache). Pour ajouter des produits par la
+# suite, voir le script `scripts/add_products.py` plutôt que modifier cette
+# liste (qui ne sera plus relue une fois la table peuplée).
+#
+# Un produit non reconnu n'est pas bloquant — il est simplement classé dans
+# "Divers" et gardé tel quel.
+PRODUCTS = [
+    {
+        "canonical": "Courgette",
+        "synonyms": ["courgette", "courgettes", "courgette verte", "courgettes vertes"],
+        "category": "Fruits et légumes",
+    },
+    {
+        "canonical": "Carotte",
+        "synonyms": ["carotte", "carottes"],
+        "category": "Fruits et légumes",
+    },
+    {
+        "canonical": "Oignon",
+        "synonyms": ["oignon", "oignons", "oignon jaune", "oignons jaunes"],
+        "category": "Fruits et légumes",
+    },
+    {
+        "canonical": "Ail",
+        "synonyms": ["ail", "gousse d'ail", "gousses d'ail"],
+        "category": "Fruits et légumes",
+    },
+    {
+        "canonical": "Poivron rouge",
+        "synonyms": ["poivron rouge", "poivrons rouges"],
+        "category": "Fruits et légumes",
+    },
+    {
+        "canonical": "Tomate",
+        "synonyms": ["tomate", "tomates"],
+        "category": "Fruits et légumes",
+    },
+    {
+        "canonical": "Tomates cerises",
+        "synonyms": ["tomate cerise", "tomates cerises", "tomates cerise"],
+        "category": "Fruits et légumes",
+    },
+    {
+        "canonical": "Pomme de terre",
+        "synonyms": ["pomme de terre", "pommes de terre", "patate", "patates"],
+        "category": "Fruits et légumes",
+    },
+    {
+        "canonical": "Citron",
+        "synonyms": ["citron", "citrons", "citron jaune"],
+        "category": "Fruits et légumes",
+    },
+    {
+        "canonical": "Persil",
+        "synonyms": ["persil", "persil plat", "persil frisé"],
+        "category": "Fruits et légumes",
+    },
+    {
+        "canonical": "Blanc de poulet",
+        "synonyms": ["blanc de poulet", "blancs de poulet", "escalope de poulet", "filet de poulet"],
+        "category": "Boucherie",
+    },
+    {
+        "canonical": "Bœuf haché",
+        "synonyms": ["bœuf haché", "boeuf haché", "steak haché", "viande hachée"],
+        "category": "Boucherie",
+    },
+    {
+        "canonical": "Lardons",
+        "synonyms": ["lardons", "lardons fumés", "lardon"],
+        "category": "Boucherie",
+    },
+    {
+        "canonical": "Saucisse",
+        "synonyms": ["saucisse", "saucisses", "chipolata", "chipolatas"],
+        "category": "Boucherie",
+    },
+    {
+        "canonical": "Saumon",
+        "synonyms": ["saumon", "pavé de saumon", "filet de saumon"],
+        "category": "Poissonnerie",
+    },
+    {
+        "canonical": "Crevettes",
+        "synonyms": ["crevette", "crevettes", "crevettes roses", "gambas"],
+        "category": "Poissonnerie",
+    },
+    {
+        "canonical": "Lait",
+        "synonyms": ["lait", "lait demi-écrémé", "lait entier"],
+        "category": "Crèmerie",
+    },
+    {
+        "canonical": "Beurre",
+        "synonyms": ["beurre", "beurre doux", "beurre demi-sel"],
+        "category": "Crèmerie",
+    },
+    {
+        "canonical": "Crème fraîche",
+        "synonyms": ["crème fraîche", "crème fraiche", "crème liquide", "crème épaisse"],
+        "category": "Crèmerie",
+    },
+    {
+        "canonical": "Œuf",
+        "synonyms": ["œuf", "œufs", "oeuf", "oeufs"],
+        "category": "Crèmerie",
+    },
+    {
+        "canonical": "Fromage râpé",
+        "synonyms": ["fromage râpé", "gruyère râpé", "emmental râpé"],
+        "category": "Crèmerie",
+    },
+    {
+        "canonical": "Mozzarella",
+        "synonyms": ["mozzarella", "boule de mozzarella"],
+        "category": "Crèmerie",
+    },
+    {
+        "canonical": "Pain",
+        "synonyms": ["pain", "baguette", "baguettes"],
+        "category": "Boulangerie",
+    },
+    {
+        "canonical": "Pâtes",
+        "synonyms": ["pâtes", "pate", "pates", "spaghetti", "spaghettis", "penne"],
+        "category": "Épicerie",
+    },
+    {
+        "canonical": "Riz",
+        "synonyms": ["riz", "riz basmati", "riz complet", "riz rond"],
+        "category": "Épicerie",
+    },
+    {
+        "canonical": "Farine",
+        "synonyms": ["farine", "farine de blé", "farine complète"],
+        "category": "Épicerie",
+    },
+    {
+        "canonical": "Huile d'olive",
+        "synonyms": ["huile d'olive", "huile d olive", "huile olive"],
+        "category": "Épicerie",
+    },
+    {
+        "canonical": "Lait de coco",
+        "synonyms": ["lait de coco", "lait coco", "crème de coco"],
+        "category": "Épicerie",
+    },
+    {
+        "canonical": "Pois chiches",
+        "synonyms": ["pois chiche", "pois chiches", "pois chiche en boîte"],
+        "category": "Épicerie",
+    },
+    {
+        "canonical": "Sel",
+        "synonyms": ["sel", "sel fin", "gros sel"],
+        "category": "Épices",
+    },
+    {
+        "canonical": "Poivre",
+        "synonyms": ["poivre", "poivre noir", "poivre moulu"],
+        "category": "Épices",
+    },
+    {
+        "canonical": "Curry",
+        "synonyms": ["curry", "poudre de curry", "pâte de curry"],
+        "category": "Épices",
+    },
+    {
+        "canonical": "Sucre",
+        "synonyms": ["sucre", "sucre en poudre", "sucre blanc"],
+        "category": "Pâtisserie",
+    },
+    {
+        "canonical": "Chocolat noir",
+        "synonyms": ["chocolat noir", "chocolat pâtissier", "chocolat de cuisson"],
+        "category": "Pâtisserie",
+    },
+    {
+        "canonical": "Petits pois surgelés",
+        "synonyms": ["petits pois surgelés", "petit pois surgelé"],
+        "category": "Surgelés",
+    },
+    {
+        "canonical": "Eau pétillante",
+        "synonyms": ["eau pétillante", "eau gazeuse"],
+        "category": "Boissons",
+    },
+]
 
 DEFAULT_CATEGORY = "Divers"
 
 CATEGORY_ORDER = [
-    "Fruits et légumes", "Boucherie", "Poissonnerie", "Crèmerie",
-    "Boulangerie", "Épicerie", "Épices", "Pâtisserie", "Surgelés",
-    "Boissons", "Divers",
-]
+    "Fruits et légumes","Viandes, poissons, œufs","Crèmerie",
+    "Pains et pâtisseries","Rayon frais",
+    "Épicerie salée","Épicerie sucrée","Condiments et sauces",
+    "Boissons non alcoolisées","Alcools et cave","Surgelés","Divers"]
+
+def _fold_text(text: str) -> str:
+    """Normalise un texte pour la comparaison : minuscules, sans accents, espaces compactés."""
+    text = unicodedata.normalize("NFKD", text.strip().lower())
+    text = "".join(ch for ch in text if not unicodedata.combining(ch))
+    return re.sub(r"\s+", " ", text)
+
+
+def _build_product_index(products) -> dict[str, dict]:
+    """Construit l'index {synonyme normalisé: fiche produit complète} à partir d'une liste de produits."""
+    index: dict[str, dict] = {}
+    for product in products:
+        index[_fold_text(product["canonical"])] = product
+        for synonym in product.get("synonyms", []):
+            index[_fold_text(synonym)] = product
+    return index
+
+
+def find_product(raw_name: str) -> dict | None:
+    """
+    Cherche, dans la table `products` (Supabase), le produit correspondant
+    exactement à `raw_name` — que ce soit son nom canonique ou l'un de ses
+    synonymes (comparaison insensible à la casse/aux accents).
+
+    Retourne la fiche complète ({id, canonical, category, synonyms}), ou
+    None si ce nom n'est reconnu par aucun produit connu.
+    """
+    import db  # import différé : db.py importe déjà common au niveau module,
+    # un import en tête de ce fichier créerait une dépendance circulaire.
+    index = _build_product_index(db.get_all_products())
+    return index.get(_fold_text(raw_name))
+
+
+def is_unclassified(product: dict | None) -> bool:
+    """Vrai si le produit n'existe pas encore, ou existe mais n'a pas de rayon assigné."""
+    return product is None or not product.get("category")
+
+
+def match_product(raw_name: str) -> tuple[str, str]:
+    """
+    Fait correspondre un nom de produit libre (tapé dans le formulaire) à
+    une fiche de la table `products` (sur Supabase) via ses synonymes.
+
+    Retourne (nom_canonique, rayon). Si le produit n'est pas reconnu, ou
+    reconnu mais pas encore classé, il est rangé dans DEFAULT_CATEGORY en
+    attendant — ce n'est jamais bloquant pour générer la liste de courses.
+    """
+    product = find_product(raw_name)
+    if product:
+        return product["canonical"], product["category"] or DEFAULT_CATEGORY
+    return raw_name.strip().capitalize(), DEFAULT_CATEGORY
+
+
+def _ordered_categories(present: set) -> list[str]:
+    """Ordonne les rayons présents : d'abord CATEGORY_ORDER, puis les rayons
+    ajoutés à PRODUCTS mais absents de cette liste (ordre alphabétique),
+    Divers toujours en dernier."""
+    ordered = [c for c in CATEGORY_ORDER if c in present and c != DEFAULT_CATEGORY]
+    extra = sorted(c for c in present if c not in CATEGORY_ORDER and c != DEFAULT_CATEGORY)
+    ordered += extra
+    if DEFAULT_CATEGORY in present:
+        ordered.append(DEFAULT_CATEGORY)
+    return ordered
 
 
 # ---------------------------------------------------------------------------
@@ -261,11 +420,14 @@ class RecipeChoice:
 @dataclass
 class ShoppingList:
     items: dict = field(default_factory=lambda: defaultdict(Fraction))
+    categories: dict = field(default_factory=dict)  # nom canonique (minuscule) -> rayon
 
     def add(self, name: str, quantity, unit: str) -> None:
         quantity, unit = normalize_unit(quantity, unit)
-        key = (name.strip().lower(), unit)
+        canonical_name, category = match_product(name)
+        key = (canonical_name.lower(), unit)
         self.items[key] += quantity
+        self.categories[key[0]] = category
 
     def as_grouped_lines(self) -> dict:
         """Retourne un dict {catégorie: [lignes formatées]}."""
@@ -290,7 +452,7 @@ class ShoppingList:
             else:
                 text = f"{qty_str} x {label}"
 
-            category = INGREDIENT_CATEGORIES.get(name.lower(), DEFAULT_CATEGORY)
+            category = self.categories.get(name, DEFAULT_CATEGORY)
             grouped[category].append(text)
 
         return grouped
@@ -305,6 +467,31 @@ def format_quantity(qty: Fraction) -> str:
     if rounded == int(rounded):
         return str(int(rounded))
     return str(rounded)
+
+
+def scaled_ingredient_sections(recipe: dict, people: int) -> dict[str, list[str]]:
+    """
+    Ingrédients d'une recette, mis à l'échelle pour `people` personnes et
+    formatés en lignes lisibles ({section: ["500 g de Courgette", ...]}) —
+    même logique de mise à l'échelle que la liste de courses et le PDF,
+    factorisée ici pour l'affichage d'une recette dans l'app (page « Mes
+    listes »).
+    """
+    base = recipe["portions_base"] or 1
+    ratio = Fraction(int(people), base)
+    sections: dict[str, list[str]] = {}
+    for section_name, rows in recipe["ingredients"].items():
+        lines = []
+        for ingredient_name, qty, unit in rows:
+            scaled = Fraction(str(qty)).limit_denominator(100) * ratio
+            qty_str = format_quantity(scaled)
+            label = ingredient_name.capitalize()
+            if unit and unit != "unité":
+                lines.append(f"{qty_str} {unit} de {label}")
+            else:
+                lines.append(f"{qty_str} x {label}")
+        sections[section_name] = lines
+    return sections
 
 
 # ---------------------------------------------------------------------------
@@ -576,12 +763,11 @@ def build_shopping_list(choices: list[RecipeChoice], recipes: dict) -> ShoppingL
 
 def build_shopping_text(title: str, grouped: dict) -> str:
     lines = [title, "=" * len(title), ""]
-    for category in CATEGORY_ORDER:
-        if category in grouped:
-            lines.append(f"=== {category.upper()} ===")
-            for item in grouped[category]:
-                lines.append(f"– {item}")
-            lines.append("")
+    for category in _ordered_categories(set(grouped.keys())):
+        lines.append(f"=== {category.upper()} ===")
+        for item in grouped[category]:
+            lines.append(f"– {item}")
+        lines.append("")
     return "\n".join(lines)
 
 
@@ -599,9 +785,7 @@ def export_to_macos_notes(title: str, grouped: dict) -> bool:
         return False
 
     body_html = f"<h1>{_escape_applescript(title)}</h1>"
-    for category in CATEGORY_ORDER:
-        if category not in grouped:
-            continue
+    for category in _ordered_categories(set(grouped.keys())):
         body_html += f"<h2>{_escape_applescript(category)}</h2><ul>"
         for item in grouped[category]:
             body_html += f"<li>{_escape_applescript(item)}</li>"

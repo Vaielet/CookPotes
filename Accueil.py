@@ -96,6 +96,15 @@ pages = [
     st.Page(home_page, title="Accueil", icon="🏠", default=True),
     st.Page("pages/2_🛒_Générer_ma_liste.py", title="Générer ma liste", icon="🛒"),
     st.Page("pages/1_🍳_Ajouter_une_recette.py", title="Ajouter une recette", icon="🍳"),]
+    
+if auth.is_editor():
+    pages.append(
+        st.Page(
+            "pages/5_📋_Mes_listes.py",
+            title="Mes listes",
+            icon="📋",
+        )
+    )
 
 if auth.is_admin():
     pages.append(
@@ -105,6 +114,17 @@ if auth.is_admin():
             icon="👤",
         )
     )
+    
+if auth.can_manage_products():
+    pages.append(
+        st.Page(
+            "pages/4_🧺_Produits.py",
+            title="Gestion des produits",
+            icon="🧺",
+        )
+    )
+    
+    
 
 pg = st.navigation(pages)
 pg.run()

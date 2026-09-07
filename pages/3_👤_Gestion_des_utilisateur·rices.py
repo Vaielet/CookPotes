@@ -38,11 +38,12 @@ if st.session_state.get("_flash_user_msg"):
 st.subheader("Créer un·e utilisateur·rice")
 
 with st.form("_create_user_form", clear_on_submit=True):
-    cols = st.columns([2, 2, 1, 1])
+    cols = st.columns([2, 2, 1, 1, 1.4])
     new_username = cols[0].text_input("Identifiant")
     new_password = cols[1].text_input("Mot de passe", type="password")
     new_is_editor = cols[2].checkbox("Éditeur·rice", value=True)
     new_is_admin = cols[3].checkbox("Admin", value=False)
+    new_can_manage_products = cols[4].checkbox("Gestion des produits", value=False)
     submitted = st.form_submit_button("➕ Créer le compte", type="primary")
 
 if submitted:
@@ -53,7 +54,10 @@ if submitted:
         st.error("Le mot de passe doit contenir au moins 6 caractères.")
     else:
         try:
-            db.create_user(username, new_password, is_editor=new_is_editor, is_admin=new_is_admin)
+            db.create_user(
+                username, new_password, is_editor=new_is_editor, is_admin=new_is_admin,
+                can_manage_products=new_can_manage_products,
+            )
         except db.IntegrityError:
             st.error(f"L'identifiant « {username} » est déjà utilisé.")
         else:
@@ -72,7 +76,7 @@ users = db.list_users()
 
 for user in users:
     with st.container(border=True):
-        cols = st.columns([2, 1, 1, 1, 1, 1])
+        cols = st.columns([1.6, 1, 1, 1.4, 1, 1, 1])
         cols[0].markdown(f"**{user['username']}**")
 
         is_editor = cols[1].checkbox(
@@ -81,17 +85,27 @@ for user in users:
         is_admin = cols[2].checkbox(
             "Admin", value=user["is_admin"], key=f"admin_{user['id']}"
         )
+        can_manage_products = cols[3].checkbox(
+            "Gestion produits", value=user["can_manage_products"], key=f"products_{user['id']}"
+        )
 
-        role_changed = (is_editor != user["is_editor"]) or (is_admin != user["is_admin"])
-        if cols[3].button("💾 Appliquer", key=f"apply_{user['id']}", disabled=not role_changed):
+        role_changed = (
+            (is_editor != user["is_editor"])
+            or (is_admin != user["is_admin"])
+            or (can_manage_products != user["can_manage_products"])
+        )
+        if cols[4].button("💾 Appliquer", key=f"apply_{user['id']}", disabled=not role_changed):
             if user["is_admin"] and not is_admin and db.count_admins() <= 1:
                 st.error("Impossible de retirer le dernier compte administrateur.")
             else:
-                db.set_user_role(user["id"], is_editor=is_editor, is_admin=is_admin)
+                db.set_user_role(
+                    user["id"], is_editor=is_editor, is_admin=is_admin,
+                    can_manage_products=can_manage_products,
+                )
                 st.session_state["_flash_user_msg"] = f"Rôle de « {user['username']} » mis à jour."
                 st.rerun()
 
-        with cols[4].popover("🔑 Mot de passe"):
+        with cols[5].popover("🔑 Mot de passe"):
             new_pw = st.text_input(
                 "Nouveau mot de passe", type="password", key=f"newpw_{user['id']}"
             )
@@ -104,7 +118,7 @@ for user in users:
                     st.rerun()
 
         delete_disabled = user["is_admin"] and db.count_admins() <= 1
-        if cols[5].button(
+        if cols[6].button(
             "🗑️ Supprimer", key=f"deluser_{user['id']}", disabled=delete_disabled
         ):
             db.delete_user(user["id"])
@@ -113,4 +127,4 @@ for user in users:
             st.session_state["_flash_user_msg"] = f"Compte « {user['username']} » supprimé."
             st.rerun()
         if delete_disabled:
-            cols[5].caption("Dernier admin")
+            cols[6].caption("Dernier admin")

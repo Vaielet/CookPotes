@@ -1,0 +1,260 @@
+"""
+Page 5 — Mes listes de courses.
+
+Ouverte à tout compte connecté (pas besoin d'être éditeur·rice ni admin) :
+retrouve les listes de courses enregistrées depuis « Générer ma liste »,
+permet de cocher les articles au fur et à mesure des courses, et d'afficher
+le détail d'une recette de la liste — tout d'un coup, ou étape par étape.
+"""
+
+import streamlit as st
+
+import auth
+import common
+import db
+
+st.set_page_config(page_title="Mes listes", page_icon="📋", layout="wide")
+
+db.init_db()
+common.header_logo()
+auth.require_login()
+
+
+def _move_step(step_key: str, delta: int, max_index: int) -> None:
+    """Callback des boutons Précédent/Suivant : avance/recule d'une étape,
+    borné à [0, max_index]. Volontairement appelé via on_click (voir plus
+    bas pourquoi), pas via un st.rerun() manuel après le clic."""
+    current = st.session_state.get(step_key, 0)
+    st.session_state[step_key] = max(0, min(current + delta, max_index))
+
+
+@st.dialog(" ", width="large")
+def _recipe_dialog(name: str, people: int, recipe: dict) -> None:
+    """Affiche une recette en grand : vignette, ingrédients à l'échelle (dans
+    un expander), et préparation — au choix en une fois, ou étape par étape."""
+    st.markdown(f"## {name}")
+    st.caption(f"Pour {people} personne(s)")
+
+    # Vignette (pas la photo en pleine largeur) : on réutilise le même rendu
+    # à taille fixe que les cartes recette de la page « Générer ma liste ».
+    thumb_col, _spacer_col = st.columns([1, 2])
+    with thumb_col:
+        common.render_recipe_image_card(name, recipe["image"])
+
+    sections = common.scaled_ingredient_sections(recipe, people)
+    with st.expander("📋 Ingrédients", expanded=False):
+        for section_name, lines in sections.items():
+            if len(sections) > 1:
+                st.markdown(f"**{section_name}**")
+            for line in lines:
+                st.markdown(f"- {line}")
+
+    st.markdown("### 👩‍🍳 Préparation")
+    instructions = recipe.get("instructions") or []
+    if not instructions:
+        st.caption("Aucune étape renseignée pour cette recette.")
+        return
+
+    mode_key = f"cookmode_{name}_{people}"
+    mode = st.radio(
+        "Affichage", ["Tout afficher", "Étape par étape"],
+        horizontal=True, key=mode_key, label_visibility="collapsed",
+    )
+
+    if mode == "Tout afficher":
+        for i, step in enumerate(instructions, start=1):
+            st.markdown(f"{i}. {step}")
+    else:
+        step_key = f"cookstep_{name}_{people}"
+        idx = max(0, min(st.session_state.get(step_key, 0), len(instructions) - 1))
+        st.session_state[step_key] = idx
+
+        st.progress((idx + 1) / len(instructions), text=f"Étape {idx + 1} / {len(instructions)}")
+        st.markdown(f"#### {instructions[idx]}")
+
+        # Important : on passe par des callbacks on_click (qui mettent à jour
+        # session_state AVANT que le script ne se réexécute) plutôt que par
+        # un st.rerun() manuel après le clic — appeler st.rerun() à
+        # l'intérieur d'un st.dialog referme la fenêtre au lieu de
+        # simplement rafraîchir son contenu. Un clic sur un bouton déclenche
+        # de toute façon une réexécution naturelle, qui suffit ici.
+        nav_cols = st.columns(2)
+        nav_cols[0].button(
+            "◀ Précédent", disabled=idx == 0, use_container_width=True,
+            key=f"prevstep_{name}_{people}",
+            on_click=_move_step, args=(step_key, -1, len(instructions) - 1),
+        )
+        nav_cols[1].button(
+            "Suivant ▶", disabled=idx == len(instructions) - 1, use_container_width=True,
+            key=f"nextstep_{name}_{people}",
+            on_click=_move_step, args=(step_key, 1, len(instructions) - 1),
+        )
+
+
+st.title("📋 Mes listes de courses")
+st.caption(
+    "Retrouve ici les listes enregistrées depuis « 🛒 Générer ma liste ». "
+    "Coche les articles au fur et à mesure de tes courses, et ouvre une "
+    "recette pour l'avoir sous les yeux en cuisinant."
+)
+
+user_id = auth.current_user_id()
+
+if st.session_state.get("_flash_list_msg"):
+    st.success(st.session_state["_flash_list_msg"])
+    st.session_state["_flash_list_msg"] = None
+
+lists_summary = db.get_saved_lists(user_id)
+
+if not lists_summary:
+    st.info(
+        "Aucune liste enregistrée pour l'instant. Va sur « 🛒 Générer ma "
+        "liste », choisis tes recettes, génère la liste, puis clique sur "
+        "« 💾 Enregistrer dans mon compte »."
+    )
+    st.stop()
+
+
+# ---------------------------------------------------------------------------
+# Sélecteur de liste
+# ---------------------------------------------------------------------------
+
+def _list_label(l: dict) -> str:
+    title = l["reference"] or "Liste sans nom"
+    date = common.format_datetime(l["created_at"])
+    return f"{title} — {date} ({l['checked_items']}/{l['total_items']} cochés)"
+
+
+options = {_list_label(l): l["id"] for l in lists_summary}
+labels = list(options.keys())
+
+if "open_list_id" not in st.session_state or st.session_state["open_list_id"] not in options.values():
+    st.session_state["open_list_id"] = lists_summary[0]["id"]
+
+current_label = next(lbl for lbl, i in options.items() if i == st.session_state["open_list_id"])
+
+select_col, delete_col = st.columns([4, 1])
+selected_label = select_col.selectbox(
+    "Choisis une liste", options=labels, index=labels.index(current_label),
+)
+selected_id = options[selected_label]
+st.session_state["open_list_id"] = selected_id
+
+delete_col.write("")
+if delete_col.button("🗑️ Supprimer cette liste", use_container_width=True):
+    db.delete_saved_list(selected_id, user_id)
+    st.session_state["open_list_id"] = None
+    st.session_state["_flash_list_msg"] = "Liste supprimée."
+    st.rerun()
+
+detail = db.get_saved_list(selected_id, user_id)
+if detail is None:
+    st.warning("Cette liste n'existe plus.")
+    st.stop()
+
+all_recipes = db.get_all_recipes()
+
+st.divider()
+
+
+# ---------------------------------------------------------------------------
+# Actions sur cette liste : télécharger / ouvrir dans une app, comme sur
+# « 🛒 Générer ma liste » — sans rien recalculer, juste exporter les
+# articles déjà enregistrés tels quels.
+# ---------------------------------------------------------------------------
+list_title = detail["reference"] or "Liste de courses"
+
+export_grouped: dict[str, list[str]] = {}
+for item in detail["items"]:
+    export_grouped.setdefault(item["category"], []).append(item["label"])
+
+# On ne garde que les recettes de la liste qui existent encore — une
+# recette supprimée depuis ne peut plus être imprimée dans le carnet.
+current_choices = [
+    common.RecipeChoice(name=r["name"], people=r["people"])
+    for r in detail["recipes"] if r["name"] in all_recipes
+]
+missing_recipes = [r["name"] for r in detail["recipes"] if r["name"] not in all_recipes]
+
+action_cols = st.columns(3)
+
+with action_cols[0]:
+    st.download_button(
+        "⬇️ Télécharger la liste (.txt)",
+        data=common.build_shopping_text(list_title, export_grouped),
+        file_name=f"{list_title}.txt", mime="text/plain",
+        use_container_width=True, disabled=not export_grouped,
+    )
+
+with action_cols[1]:
+    if st.button("🗒️ Ouvrir dans l'app Notes", use_container_width=True, disabled=not export_grouped):
+        if common.export_to_macos_notes(list_title, export_grouped):
+            st.toast("Liste envoyée dans l'app Notes.")
+        else:
+            st.warning(
+                "Cet export ne fonctionne que si l'application tourne en "
+                "local sur un Mac (pas depuis Streamlit Cloud)."
+            )
+
+with action_cols[2]:
+    booklet_key = f"_booklet_pdf_{selected_id}"
+    if st.button("📖 Générer le carnet de recettes", use_container_width=True, disabled=not current_choices):
+        st.session_state[booklet_key] = common.build_recipe_booklet_pdf(
+            current_choices, all_recipes, title=list_title,
+        )
+    if st.session_state.get(booklet_key):
+        st.download_button(
+            "⬇️ Télécharger le PDF", data=st.session_state[booklet_key],
+            file_name=f"carnet_{selected_id}.pdf", mime="application/pdf",
+            use_container_width=True,
+        )
+
+if missing_recipes:
+    st.caption(f"⚠️ Recette(s) supprimée(s) depuis, exclue(s) du carnet : {', '.join(missing_recipes)}.")
+
+st.divider()
+
+
+# ---------------------------------------------------------------------------
+# Progression + liste de courses à cocher
+# ---------------------------------------------------------------------------
+
+total_items = len(detail["items"])
+checked_items = sum(1 for it in detail["items"] if it["checked"])
+
+st.subheader("🛒 Liste de courses")
+if total_items:
+    st.progress(checked_items / total_items, text=f"{checked_items} / {total_items} article(s) coché(s)")
+
+by_category: dict[str, list[dict]] = {}
+for item in detail["items"]:
+    by_category.setdefault(item["category"], []).append(item)
+
+for category in common._ordered_categories(set(by_category.keys())):
+    st.markdown(f"**{category}**")
+    for item in by_category[category]:
+        checked_now = st.checkbox(item["label"], value=item["checked"], key=f"item_{item['id']}")
+        if checked_now != item["checked"]:
+            db.set_shopping_item_checked(item["id"], user_id, checked_now)
+            st.rerun()
+
+st.divider()
+
+
+# ---------------------------------------------------------------------------
+# Recettes de cette liste — affichage détaillé sur demande
+# ---------------------------------------------------------------------------
+
+st.subheader("🍽️ Recettes de cette liste")
+
+recipe_cols = st.columns(3)
+
+for i, r in enumerate(detail["recipes"]):
+    with recipe_cols[i % 3]:
+        with st.container(border=True):
+            st.markdown(f"**{r['name']}**")
+            st.caption(f"{r['people']} personne(s)")
+            if r["name"] not in all_recipes:
+                st.caption("⚠️ Cette recette a été supprimée depuis.")
+            elif st.button("👀 Voir la recette", key=f"viewrecipe_{selected_id}_{i}", use_container_width=True):
+                _recipe_dialog(r["name"], r["people"], all_recipes[r["name"]])

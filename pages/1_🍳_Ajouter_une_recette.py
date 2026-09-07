@@ -23,6 +23,8 @@ import auth
 import db
 import common
 
+st.set_page_config(page_title="Ajouter / modifier une recette", page_icon="🍳", layout="wide")
+
 db.init_db()
 
 common.header_logo()
@@ -279,11 +281,70 @@ if st.button("+ Ajouter une section (ex : Sauce, Accompagnement)"):
 
 st.subheader("Instructions")
 instructions_text = st.text_area(
-    "Une étape par ligne, sans numérotation",
+    "Une étape par ligne",
     key="new_recipe_instructions",
     height=150,
     placeholder="Épluchez et coupez les légumes...\nFaites revenir dans l'huile d'olive...\n...",
 )
+
+
+# ---------------------------------------------------------------------------
+# Produits pas encore répertoriés — classement facultatif à la volée
+# ---------------------------------------------------------------------------
+#
+# Calculé à partir des ingrédients tapés ci-dessus (avant harmonisation),
+# pour chaque nom qui ne correspond à aucun produit connu, ou correspond à
+# un produit existant mais sans rayon assigné (ex: importé depuis Open
+# Food Facts sans classement). Entièrement facultatif : la recette
+# s'enregistre normalement même si rien n'est renseigné ici — voir le
+# traitement à l'enregistrement plus bas, qui enregistre quand même
+# chaque produit (avec ou sans rayon) pour qu'il ne soit plus jamais
+# proposé comme "nouveau" une fois tapé une première fois.
+
+def _typed_ingredient_names() -> list[str]:
+    names, seen = [], set()
+    for sec in st.session_state.new_recipe_sections:
+        for row in sec["rows"]:
+            raw = row["name"].strip()
+            if raw and raw.lower() not in seen:
+                seen.add(raw.lower())
+                names.append(raw)
+    return names
+
+
+NEW_CATEGORY_PLACEHOLDER = "— à définir plus tard —"
+
+to_classify = [
+    (raw, common.find_product(raw))
+    for raw in _typed_ingredient_names()
+]
+to_classify = [(raw, product) for raw, product in to_classify if common.is_unclassified(product)]
+
+if to_classify:
+    st.subheader("🏷️ Nouveaux produits détectés")
+    st.caption(
+        "Ces ingrédients ne sont pas encore répertoriés dans la base de "
+        "produits (ou n'ont pas encore de rayon). Tu peux les classer "
+        "tout de suite — c'est facultatif, la recette s'enregistre "
+        "normalement même si tu laisses ça à plus tard."
+    )
+    header_cols = st.columns([2, 2, 3])
+    header_cols[0].markdown("**Ingrédient**")
+    header_cols[1].markdown("**Rayon**")
+    header_cols[2].markdown("**Synonymes**")
+    for raw, product in to_classify:
+        raw_key = raw.strip().lower()
+        row_cols = st.columns([2, 2, 3])
+        row_cols[0].markdown(raw)
+        row_cols[1].selectbox(
+            "Rayon", options=[NEW_CATEGORY_PLACEHOLDER] + common.CATEGORY_ORDER,
+            key=f"newprod_cat_{raw_key}", label_visibility="collapsed",
+        )
+        row_cols[2].text_input(
+            "Synonymes", value=", ".join(product["synonyms"]) if product else "",
+            key=f"newprod_syn_{raw_key}", label_visibility="collapsed",
+            placeholder="ex : courgette, courgettes vertes",
+        )
 
 
 # ---------------------------------------------------------------------------
@@ -304,11 +365,16 @@ if st.button(save_label, type="primary"):
     sections = {}
     for sec in st.session_state.new_recipe_sections:
         section_name = sec["name"].strip() or "Plat"
-        valid_rows = [
-            (row["name"].strip(), row["qty"], row["unit"])
-            for row in sec["rows"]
-            if row["name"].strip() and row["qty"] > 0
-        ]
+        valid_rows = []
+        for row in sec["rows"]:
+            raw_name = row["name"].strip()
+            if raw_name and row["qty"] > 0:
+                # Harmonise le nom tapé librement avec la base de produits
+                # (voir common.PRODUCTS) : "courgettes vertes" devient
+                # "Courgette", etc. Un produit non reconnu est simplement
+                # conservé tel quel (juste remis en forme).
+                canonical_name, _category = common.match_product(raw_name)
+                valid_rows.append((canonical_name, row["qty"], row["unit"]))
         if valid_rows:
             sections.setdefault(section_name, []).extend(valid_rows)
 
@@ -374,6 +440,23 @@ if st.button(save_label, type="primary"):
         except db.IntegrityError:
             st.error(f"Une recette nommée « {name} » existe déjà. Choisissez un autre nom.")
         else:
+            # Enregistre/complète chaque produit détecté ci-dessus, qu'il
+            # ait été classé ou laissé "à définir plus tard" — dans les
+            # deux cas, il est reconnu la prochaine fois qu'il est tapé,
+            # au lieu de redemander sans cesse la même chose.
+            for raw, product in to_classify:
+                raw_key = raw.strip().lower()
+                category_choice = st.session_state.get(f"newprod_cat_{raw_key}", NEW_CATEGORY_PLACEHOLDER)
+                category_value = None if category_choice == NEW_CATEGORY_PLACEHOLDER else category_choice
+                synonyms_text = st.session_state.get(f"newprod_syn_{raw_key}", "")
+                synonyms_list = [s.strip() for s in synonyms_text.split(",") if s.strip()]
+                if raw.strip().lower() not in [s.lower() for s in synonyms_list]:
+                    synonyms_list.append(raw.strip())
+                canonical_name = product["canonical"] if product else raw.strip().capitalize()
+                db.upsert_product(canonical_name, category_value, synonyms_list)
+                st.session_state.pop(f"newprod_cat_{raw_key}", None)
+                st.session_state.pop(f"newprod_syn_{raw_key}", None)
+
             st.session_state["_flash_success"] = flash
             st.session_state["_pending_reset"] = True
             st.rerun()

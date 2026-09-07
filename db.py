@@ -84,6 +84,17 @@ def _clear_user_caches() -> None:
     list_users.clear()
 
 
+def _clear_product_caches() -> None:
+    """À appeler après toute écriture sur la base de produits d'épicerie."""
+    get_all_products.clear()
+
+
+def _clear_saved_list_caches() -> None:
+    """À appeler après toute écriture sur les listes de courses enregistrées."""
+    get_saved_lists.clear()
+    get_saved_list.clear()
+
+
 def _now_iso() -> str:
     return datetime.now(timezone.utc).isoformat(timespec="seconds")
 
@@ -193,9 +204,45 @@ def init_db() -> None:
                 is_admin       BOOLEAN NOT NULL DEFAULT FALSE
             )
         """))
+        conn.execute(text("""
+            CREATE TABLE IF NOT EXISTS products (
+                id         SERIAL PRIMARY KEY,
+                canonical  TEXT UNIQUE NOT NULL,
+                category   TEXT,
+                synonyms   TEXT[] NOT NULL DEFAULT '{}'
+            )
+        """))
+        conn.execute(text("""
+            CREATE TABLE IF NOT EXISTS saved_shopping_lists (
+                id          SERIAL PRIMARY KEY,
+                user_id     INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+                reference   TEXT,
+                created_at  TEXT NOT NULL
+            )
+        """))
+        conn.execute(text("""
+            CREATE TABLE IF NOT EXISTS saved_shopping_list_recipes (
+                id           SERIAL PRIMARY KEY,
+                list_id      INTEGER NOT NULL REFERENCES saved_shopping_lists(id) ON DELETE CASCADE,
+                recipe_name  TEXT NOT NULL,
+                people       INTEGER NOT NULL,
+                position     INTEGER NOT NULL DEFAULT 0
+            )
+        """))
+        conn.execute(text("""
+            CREATE TABLE IF NOT EXISTS saved_shopping_list_items (
+                id        SERIAL PRIMARY KEY,
+                list_id   INTEGER NOT NULL REFERENCES saved_shopping_lists(id) ON DELETE CASCADE,
+                category  TEXT NOT NULL,
+                label     TEXT NOT NULL,
+                checked   BOOLEAN NOT NULL DEFAULT FALSE,
+                position  INTEGER NOT NULL DEFAULT 0
+            )
+        """))
     _migrate_schema()
     _seed_default_recipes_if_empty()
     _seed_default_admin_if_empty()
+    _seed_default_products_if_empty()
 
 
 def _migrate_schema() -> None:
@@ -219,6 +266,21 @@ def _migrate_schema() -> None:
             text("UPDATE recipes SET created_at = :now WHERE created_at IS NULL"),
             {"now": _now_iso()},
         )
+
+        # Nouveau rôle "gestion des produits" (voir set_user_role / auth.py) :
+        # peut classer/corriger la base de produits d'épicerie, sans avoir
+        # besoin d'être administrateur·rice.
+        conn.execute(text(
+            "ALTER TABLE users ADD COLUMN IF NOT EXISTS can_manage_products BOOLEAN NOT NULL DEFAULT FALSE"
+        ))
+
+        # La table `products` exigeait initialement un rayon (category) non
+        # nul. On l'assouplit : un produit peut désormais exister "en
+        # attente de classement" (category NULL), typiquement enregistré à
+        # la volée depuis la page "Ajouter une recette" quand un ingrédient
+        # inconnu est tapé. Pas d'effet si déjà migré (IF EXISTS-like via
+        # un DO simple, silencieux si la contrainte n'existe plus).
+        conn.execute(text("ALTER TABLE products ALTER COLUMN category DROP NOT NULL"))
 
 
 def _seed_default_recipes_if_empty() -> None:
@@ -306,6 +368,34 @@ def _seed_default_recipes_if_empty() -> None:
             cook_time_minutes=data.get("cook_time_minutes"),
             created_by="admin",
         )
+
+
+def _seed_default_products_if_empty() -> None:
+    """
+    Copie la petite liste `common.PRODUCTS` dans la table `products` au
+    tout premier lancement (table vide). Ensuite, c'est cette table sur
+    Supabase qui fait foi — voir `scripts/add_products.py` pour continuer
+    à l'alimenter.
+    """
+    with get_conn() as conn:
+        count = conn.execute(text("SELECT COUNT(*) FROM products")).scalar()
+    if count > 0:
+        return
+
+    with get_conn() as conn:
+        for product in common.PRODUCTS:
+            conn.execute(
+                text("""
+                    INSERT INTO products (canonical, category, synonyms)
+                    VALUES (:canonical, :category, :synonyms)
+                    ON CONFLICT (canonical) DO NOTHING
+                """),
+                {
+                    "canonical": product["canonical"],
+                    "category": product["category"],
+                    "synonyms": product["synonyms"],
+                },
+            )
 
 
 def add_recipe(
@@ -712,6 +802,7 @@ def create_user(
     password: str,
     is_editor: bool = False,
     is_admin: bool = False,
+    can_manage_products: bool = False,
 ) -> int:
     """Crée un nouvel utilisateur."""
 
@@ -721,9 +812,9 @@ def create_user(
         new_id = conn.execute(
             text("""
                 INSERT INTO users
-                (username, password_hash, salt, is_editor, is_admin)
+                (username, password_hash, salt, is_editor, is_admin, can_manage_products)
                 VALUES
-                (:username, :password_hash, :salt, :is_editor, :is_admin)
+                (:username, :password_hash, :salt, :is_editor, :is_admin, :can_manage_products)
                 RETURNING id
             """),
             {
@@ -732,6 +823,7 @@ def create_user(
                 "salt": salt_hex,
                 "is_editor": bool(is_editor),
                 "is_admin": bool(is_admin),
+                "can_manage_products": bool(can_manage_products),
             },
         ).scalar()
     _clear_user_caches()
@@ -775,6 +867,7 @@ def verify_credentials(
         "username": row["username"],
         "is_editor": bool(row["is_editor"]),
         "is_admin": bool(row["is_admin"]),
+        "can_manage_products": bool(row["can_manage_products"]),
     }
 
 
@@ -782,20 +875,45 @@ def verify_credentials(
 def list_users() -> list[dict]:
     with get_conn() as conn:
         rows = conn.execute(
-            text("SELECT id, username, is_editor, is_admin FROM users ORDER BY LOWER(username)")
+            text("SELECT id, username, is_editor, is_admin, can_manage_products FROM users ORDER BY LOWER(username)")
         ).mappings().all()
     return [
-        {"id": r["id"], "username": r["username"], "is_editor": bool(r["is_editor"]), "is_admin": bool(r["is_admin"])}
+        {
+            "id": r["id"],
+            "username": r["username"],
+            "is_editor": bool(r["is_editor"]),
+            "is_admin": bool(r["is_admin"]),
+            "can_manage_products": bool(r["can_manage_products"]),
+        }
         for r in rows
     ]
 
 
-def set_user_role(user_id: int, is_editor: bool, is_admin: bool) -> None:
+def set_user_role(user_id: int, is_editor: bool, is_admin: bool, can_manage_products: bool | None = None) -> None:
+    """
+    Met à jour les rôles d'un compte. `can_manage_products` est optionnel :
+    laissé à None, la valeur existante n'est pas modifiée (permet à un
+    appelant qui ne connaît pas encore ce rôle de continuer à fonctionner
+    sans l'écraser par erreur).
+    """
     with get_conn() as conn:
-        conn.execute(
-            text("UPDATE users SET is_editor = :is_editor, is_admin = :is_admin WHERE id = :id"),
-            {"is_editor": bool(is_editor), "is_admin": bool(is_admin), "id": user_id},
-        )
+        if can_manage_products is None:
+            conn.execute(
+                text("UPDATE users SET is_editor = :is_editor, is_admin = :is_admin WHERE id = :id"),
+                {"is_editor": bool(is_editor), "is_admin": bool(is_admin), "id": user_id},
+            )
+        else:
+            conn.execute(
+                text("""
+                    UPDATE users
+                    SET is_editor = :is_editor, is_admin = :is_admin, can_manage_products = :can_manage_products
+                    WHERE id = :id
+                """),
+                {
+                    "is_editor": bool(is_editor), "is_admin": bool(is_admin),
+                    "can_manage_products": bool(can_manage_products), "id": user_id,
+                },
+            )
     _clear_user_caches()
 
 
@@ -818,3 +936,229 @@ def delete_user(user_id: int) -> None:
 def count_admins() -> int:
     with get_conn() as conn:
         return conn.execute(text("SELECT COUNT(*) FROM users WHERE is_admin = TRUE")).scalar()
+
+
+# ---------------------------------------------------------------------------
+# Base de produits d'épicerie (harmonisation nom/synonymes + rayon)
+# ---------------------------------------------------------------------------
+
+@st.cache_data(show_spinner=False, ttl=_READ_CACHE_TTL)
+def get_all_products() -> list[dict]:
+    """Retourne tous les produits connus : [{id, canonical, category, synonyms}, ...]."""
+    with get_conn() as conn:
+        rows = conn.execute(text("SELECT * FROM products ORDER BY LOWER(canonical)")).mappings().all()
+    return [
+        {
+            "id": r["id"],
+            "canonical": r["canonical"],
+            "category": r["category"],
+            "synonyms": list(r["synonyms"] or []),
+        }
+        for r in rows
+    ]
+
+
+def upsert_product(canonical: str, category: str | None, synonyms: list[str]) -> None:
+    """
+    Crée un produit, ou met à jour son rayon/ses synonymes s'il existe déjà
+    (identifié par son nom canonique). Le "upsert" (plutôt qu'un simple
+    insert) permet de relancer un script de peuplement autant de fois que
+    voulu sans créer de doublons.
+
+    `category=None` enregistre le produit comme "en attente de
+    classement" — utilisé quand un ingrédient inconnu est tapé dans une
+    recette : le produit existe (donc reconnu la prochaine fois), mais
+    reste visible dans la file d'attente de la page de gestion des
+    produits jusqu'à ce que quelqu'un lui attribue un rayon.
+    """
+    canonical = canonical.strip()
+    category = category.strip() if category and category.strip() else None
+    synonyms = [s.strip() for s in synonyms if s.strip()]
+    with get_conn() as conn:
+        conn.execute(
+            text("""
+                INSERT INTO products (canonical, category, synonyms)
+                VALUES (:canonical, :category, :synonyms)
+                ON CONFLICT (canonical) DO UPDATE
+                SET category = EXCLUDED.category, synonyms = EXCLUDED.synonyms
+            """),
+            {"canonical": canonical, "category": category, "synonyms": synonyms},
+        )
+    _clear_product_caches()
+
+
+def update_product(product_id: int, canonical: str, category: str | None, synonyms: list[str]) -> None:
+    """
+    Met à jour un produit existant PAR SON ID (contrairement à
+    `upsert_product`, qui identifie par le nom canonique). Nécessaire pour
+    pouvoir corriger/renommer le nom canonique lui-même depuis la page de
+    gestion des produits, sans risquer de créer un doublon.
+    """
+    canonical = canonical.strip()
+    category = category.strip() if category and category.strip() else None
+    synonyms = [s.strip() for s in synonyms if s.strip()]
+    with get_conn() as conn:
+        conn.execute(
+            text("""
+                UPDATE products
+                SET canonical = :canonical, category = :category, synonyms = :synonyms
+                WHERE id = :id
+            """),
+            {"canonical": canonical, "category": category, "synonyms": synonyms, "id": product_id},
+        )
+    _clear_product_caches()
+
+
+def delete_product(product_id: int) -> None:
+    with get_conn() as conn:
+        conn.execute(text("DELETE FROM products WHERE id = :id"), {"id": product_id})
+    _clear_product_caches()
+
+
+# ---------------------------------------------------------------------------
+# Listes de courses enregistrées sur le compte (recettes + progression)
+# ---------------------------------------------------------------------------
+#
+# Une liste enregistrée fige un INSTANTANÉ (recettes+personnes, et le texte
+# déjà formaté de chaque article) au moment de la sauvegarde : si la base de
+# produits change ensuite (nouveaux synonymes, rayon corrigé...), les
+# listes déjà enregistrées ne bougent pas rétroactivement — les cases
+# cochées restent valables pour EXACTEMENT les articles qui existaient au
+# moment de la sauvegarde.
+
+def save_shopping_list(
+    user_id: int,
+    reference: str,
+    recipe_choices: list[tuple[str, int]],
+    grouped_items: dict[str, list[str]],
+) -> int:
+    """
+    Enregistre une liste de courses sur le compte d'un·e utilisateur·rice.
+    `recipe_choices` : [(nom_recette, nb_personnes), ...].
+    `grouped_items` : {rayon: [ligne formatée, ...], ...} (voir
+    ShoppingList.as_grouped_lines côté common.py).
+    """
+    with get_conn() as conn:
+        list_id = conn.execute(
+            text("""
+                INSERT INTO saved_shopping_lists (user_id, reference, created_at)
+                VALUES (:user_id, :reference, :created_at)
+                RETURNING id
+            """),
+            {"user_id": user_id, "reference": (reference or "").strip(), "created_at": _now_iso()},
+        ).scalar()
+
+        for position, (recipe_name, people) in enumerate(recipe_choices):
+            conn.execute(
+                text("""
+                    INSERT INTO saved_shopping_list_recipes (list_id, recipe_name, people, position)
+                    VALUES (:list_id, :recipe_name, :people, :position)
+                """),
+                {"list_id": list_id, "recipe_name": recipe_name, "people": int(people), "position": position},
+            )
+
+        position = 0
+        for category, lines in grouped_items.items():
+            for line in lines:
+                conn.execute(
+                    text("""
+                        INSERT INTO saved_shopping_list_items (list_id, category, label, position)
+                        VALUES (:list_id, :category, :label, :position)
+                    """),
+                    {"list_id": list_id, "category": category, "label": line, "position": position},
+                )
+                position += 1
+
+    _clear_saved_list_caches()
+    return list_id
+
+
+@st.cache_data(show_spinner=False, ttl=_READ_CACHE_TTL)
+def get_saved_lists(user_id: int) -> list[dict]:
+    """Résumé des listes enregistrées par un·e utilisateur·rice, plus récentes d'abord."""
+    with get_conn() as conn:
+        rows = conn.execute(
+            text("""
+                SELECT l.id, l.reference, l.created_at,
+                       COUNT(i.id) AS total_items,
+                       COALESCE(SUM(CASE WHEN i.checked THEN 1 ELSE 0 END), 0) AS checked_items
+                FROM saved_shopping_lists l
+                LEFT JOIN saved_shopping_list_items i ON i.list_id = l.id
+                WHERE l.user_id = :user_id
+                GROUP BY l.id
+                ORDER BY l.created_at DESC, l.id DESC
+            """),
+            {"user_id": user_id},
+        ).mappings().all()
+    return [
+        {
+            "id": r["id"],
+            "reference": r["reference"],
+            "created_at": r["created_at"],
+            "total_items": r["total_items"],
+            "checked_items": r["checked_items"],
+        }
+        for r in rows
+    ]
+
+
+@st.cache_data(show_spinner=False, ttl=_READ_CACHE_TTL)
+def get_saved_list(list_id: int, user_id: int) -> dict | None:
+    """
+    Détail complet d'une liste enregistrée (recettes + articles), ou None
+    si elle n'existe pas ou n'appartient pas à `user_id` (vérification
+    d'appartenance systématique — on ne fait jamais confiance à un id
+    reçu sans vérifier son propriétaire).
+    """
+    with get_conn() as conn:
+        list_row = conn.execute(
+            text("SELECT * FROM saved_shopping_lists WHERE id = :id AND user_id = :user_id"),
+            {"id": list_id, "user_id": user_id},
+        ).mappings().first()
+        if list_row is None:
+            return None
+
+        recipe_rows = conn.execute(
+            text("SELECT * FROM saved_shopping_list_recipes WHERE list_id = :id ORDER BY position"),
+            {"id": list_id},
+        ).mappings().all()
+        item_rows = conn.execute(
+            text("SELECT * FROM saved_shopping_list_items WHERE list_id = :id ORDER BY position"),
+            {"id": list_id},
+        ).mappings().all()
+
+    return {
+        "id": list_row["id"],
+        "reference": list_row["reference"],
+        "created_at": list_row["created_at"],
+        "recipes": [{"name": r["recipe_name"], "people": r["people"]} for r in recipe_rows],
+        "items": [
+            {"id": r["id"], "category": r["category"], "label": r["label"], "checked": bool(r["checked"])}
+            for r in item_rows
+        ],
+    }
+
+
+def set_shopping_item_checked(item_id: int, user_id: int, checked: bool) -> None:
+    """Coche/décoche un article — vérifie que l'article appartient bien à une liste de `user_id`."""
+    with get_conn() as conn:
+        conn.execute(
+            text("""
+                UPDATE saved_shopping_list_items
+                SET checked = :checked
+                WHERE id = :item_id
+                  AND list_id IN (SELECT id FROM saved_shopping_lists WHERE user_id = :user_id)
+            """),
+            {"checked": bool(checked), "item_id": item_id, "user_id": user_id},
+        )
+    _clear_saved_list_caches()
+
+
+def delete_saved_list(list_id: int, user_id: int) -> None:
+    """Supprime une liste enregistrée — vérifie que `user_id` en est bien le·la propriétaire."""
+    with get_conn() as conn:
+        conn.execute(
+            text("DELETE FROM saved_shopping_lists WHERE id = :id AND user_id = :user_id"),
+            {"id": list_id, "user_id": user_id},
+        )
+    _clear_saved_list_caches()

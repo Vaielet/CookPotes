@@ -35,8 +35,17 @@ def is_admin() -> bool:
     return bool(st.session_state.get("auth_is_admin"))
 
 
+def can_manage_products() -> bool:
+    """Droit de classer/corriger la base de produits d'épicerie (voir page « Produits »)."""
+    return bool(st.session_state.get("auth_can_manage_products")) or is_admin()
+
+
 def current_username() -> str | None:
     return st.session_state.get("auth_user")
+
+
+def current_user_id() -> int | None:
+    return st.session_state.get("auth_user_id")
 
 
 def login(username: str, password: str) -> bool:
@@ -47,11 +56,15 @@ def login(username: str, password: str) -> bool:
     st.session_state["auth_user_id"] = user["id"]
     st.session_state["auth_is_editor"] = user["is_editor"]
     st.session_state["auth_is_admin"] = user["is_admin"]
+    st.session_state["auth_can_manage_products"] = user["can_manage_products"]
     return True
 
 
 def logout() -> None:
-    for key in ("auth_user", "auth_user_id", "auth_is_editor", "auth_is_admin"):
+    for key in (
+        "auth_user", "auth_user_id", "auth_is_editor", "auth_is_admin",
+        "auth_can_manage_products",
+    ):
         st.session_state.pop(key, None)
 
 
@@ -70,6 +83,8 @@ def render_sidebar_auth() -> None:
                 role_label = "Éditeur·rice de recettes"
             else:
                 role_label = "Lecteur·rice"
+            if can_manage_products() and not is_admin():
+                role_label += " · Gestion des produits"
             st.success(f"Connecté : **{current_username()}**  \nRôle : {role_label}")
             if st.button("Se déconnecter", key="_auth_logout_btn", use_container_width=True):
                 logout()
@@ -146,5 +161,29 @@ def require_admin(
     """À appeler tout en haut d'une page réservée aux administrateurs."""
     render_sidebar_auth()
     if not (is_logged_in() and is_admin()):
+        st.warning(message)
+        st.stop()
+
+
+def require_product_curator(
+    message: str = "🔒 Cette page est réservée aux comptes ayant le droit de gérer la base de produits.",
+) -> None:
+    """À appeler tout en haut d'une page réservée à la gestion de la base de produits."""
+    render_sidebar_auth()
+    if not (is_logged_in() and can_manage_products()):
+        st.warning(message)
+        st.stop()
+
+
+def require_login(
+    message: str = "🔒 Connecte-toi (menu de gauche) pour accéder à cette page — c'est gratuit et ça prend 10 secondes.",
+) -> None:
+    """
+    À appeler tout en haut d'une page réservée aux personnes connectées,
+    sans exigence de rôle particulier (éditeur/admin) — ex: « Mes listes »,
+    une fonctionnalité ouverte à tout compte, y compris les lecteur·rices.
+    """
+    render_sidebar_auth()
+    if not is_logged_in():
         st.warning(message)
         st.stop()
