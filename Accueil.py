@@ -51,7 +51,7 @@ Bienvenue ! Cette application te permet de :
     col1, col2 = st.columns(2)
     with col1:
         if st.button("🛒 Générer ma liste"):
-            st.switch_page("pages/2_🛒_Générer_ma_liste.py")
+            st.switch_page("pages/2_Generer_ma_liste.py")
         st.markdown("Sélectionne les recettes pour "
         "la semaine (ou le mois, soyons foufolles). Indique le "
         "nombre de personnes pour chaque recette, un clic et le tour est joué ! Tu reçois "
@@ -94,7 +94,7 @@ Bienvenue ! Cette application te permet de :
 
 pages = [
     st.Page(home_page, title="Accueil", icon="🏠", default=True),
-    st.Page("pages/2_🛒_Générer_ma_liste.py", title="Générer ma liste", icon="🛒"),
+    st.Page("pages/2_Generer_ma_liste.py", title="Générer ma liste", icon="🛒"),
     st.Page("pages/1_🍳_Ajouter_une_recette.py", title="Ajouter une recette", icon="🍳"),]
     
 if auth.is_editor():
