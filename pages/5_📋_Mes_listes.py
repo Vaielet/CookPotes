@@ -299,16 +299,24 @@ st.divider()
 
 st.subheader("🍽️ Recettes de cette liste")
 
+thumbnails = db.get_recipe_thumbnails(
+    tuple(sorted({r["name"] for r in detail["recipes"] if r["name"] in existing_recipe_names}))
+)
+
 recipe_cols = st.columns(3)
 
 for i, r in enumerate(detail["recipes"]):
     with recipe_cols[i % 3]:
         with st.container(border=True):
-            st.markdown(f"**{r['name']}**")
+            if r["name"] in existing_recipe_names:
+                common.render_recipe_image_card(r["name"], thumbnails.get(r["name"]))
+            else:
+                st.markdown(f"**{r['name']}**")
             st.caption(f"{r['people']} personne(s)")
             if r["name"] not in existing_recipe_names:
                 st.caption("⚠️ Cette recette a été supprimée depuis.")
             elif st.button("👀 Voir la recette", key=f"viewrecipe_{selected_id}_{i}", use_container_width=True):
-                # Chargement complet (avec photo) volontairement différé
-                # jusqu'ici, sur un clic explicite — pas à chaque rerun.
+                # Chargement complet (ingrédients/instructions) volontairement
+                # différé jusqu'ici, sur un clic explicite — pas à chaque
+                # rerun. La photo, elle, est déjà chargée ci-dessus (vignette).
                 _recipe_dialog(r["name"], r["people"], db.get_all_recipes()[r["name"]])
