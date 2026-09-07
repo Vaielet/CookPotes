@@ -74,6 +74,7 @@ _READ_CACHE_TTL = 600  # secondes
 def _clear_recipe_caches() -> None:
     """À appeler après toute écriture qui change le contenu des recettes."""
     get_all_recipes.clear()
+    get_recipe_names.clear()
     get_all_tags.clear()
     get_all_authors.clear()
     get_recent_recipes.clear()
@@ -651,6 +652,21 @@ def get_all_authors() -> list[str]:
             ORDER BY LOWER(created_by)
         """)).mappings().all()
         return [row["created_by"] for row in rows]
+
+
+@st.cache_data(show_spinner=False, ttl=_READ_CACHE_TTL)
+def get_recipe_names() -> set[str]:
+    """
+    Juste l'ensemble des noms de recettes existantes — ni photos, ni
+    ingrédients. À utiliser à la place de `get_all_recipes()` quand on a
+    seulement besoin de savoir si une recette existe encore (ex : page
+    « Mes listes », qui réexécute tout le script à chaque case cochée —
+    charger toutes les photos à chaque fois y créait un ralentissement
+    perceptible pour rien).
+    """
+    with get_conn() as conn:
+        rows = conn.execute(text("SELECT name FROM recipes")).mappings().all()
+        return {row["name"] for row in rows}
 
 
 @st.cache_data(show_spinner=False, ttl=_READ_CACHE_TTL)
