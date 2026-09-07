@@ -75,6 +75,7 @@ def _clear_recipe_caches() -> None:
     """À appeler après toute écriture qui change le contenu des recettes."""
     get_all_recipes.clear()
     get_recipe_names.clear()
+    get_recipe_thumbnails.clear()
     get_all_tags.clear()
     get_all_authors.clear()
     get_recent_recipes.clear()
@@ -652,6 +653,27 @@ def get_all_authors() -> list[str]:
             ORDER BY LOWER(created_by)
         """)).mappings().all()
         return [row["created_by"] for row in rows]
+
+
+@st.cache_data(show_spinner=False, ttl=_READ_CACHE_TTL)
+def get_recipe_thumbnails(names: tuple[str, ...]) -> dict[str, bytes | None]:
+    """
+    Charge uniquement les photos (pas les ingrédients, pas les
+    instructions) des recettes dont le nom figure dans `names`. À utiliser
+    à la place de `get_all_recipes()` quand on veut juste afficher des
+    vignettes pour un petit sous-ensemble de recettes (ex : les recettes
+    d'une liste de courses) — `get_all_recipes()` chargerait en comparaison
+    TOUT le contenu de TOUTES les recettes de l'appli.
+    """
+    if not names:
+        return {}
+    with get_conn() as conn:
+        rows = conn.execute(
+            text("SELECT name, image FROM recipes WHERE name IN :names")
+            .bindparams(bindparam("names", expanding=True)),
+            {"names": list(names)},
+        ).mappings().all()
+    return {row["name"]: _image_bytes(row["image"]) for row in rows}
 
 
 @st.cache_data(show_spinner=False, ttl=_READ_CACHE_TTL)
