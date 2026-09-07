@@ -152,7 +152,7 @@ if detail is None:
     st.warning("Cette liste n'existe plus.")
     st.stop()
 
-all_recipes = db.get_all_recipes()
+existing_recipe_names = db.get_recipe_names()
 
 st.divider()
 
@@ -170,11 +170,13 @@ for item in detail["items"]:
 
 # On ne garde que les recettes de la liste qui existent encore — une
 # recette supprimée depuis ne peut plus être imprimée dans le carnet.
+# (Vérification faite sur les noms seulement — pas besoin de charger les
+# photos de toutes les recettes juste pour ça.)
 current_choices = [
     common.RecipeChoice(name=r["name"], people=r["people"])
-    for r in detail["recipes"] if r["name"] in all_recipes
+    for r in detail["recipes"] if r["name"] in existing_recipe_names
 ]
-missing_recipes = [r["name"] for r in detail["recipes"] if r["name"] not in all_recipes]
+missing_recipes = [r["name"] for r in detail["recipes"] if r["name"] not in existing_recipe_names]
 
 action_cols = st.columns(3)
 
@@ -199,6 +201,10 @@ with action_cols[1]:
 with action_cols[2]:
     booklet_key = f"_booklet_pdf_{selected_id}"
     if st.button("📖 Générer le carnet de recettes", use_container_width=True, disabled=not current_choices):
+        # Chargement complet (avec photos) volontairement différé jusqu'ici :
+        # seule une action explicite et ponctuelle le déclenche, jamais un
+        # simple rerun (case cochée, etc.).
+        all_recipes = db.get_all_recipes()
         st.session_state[booklet_key] = common.build_recipe_booklet_pdf(
             current_choices, all_recipes, title=list_title,
         )
@@ -230,13 +236,22 @@ by_category: dict[str, list[dict]] = {}
 for item in detail["items"]:
     by_category.setdefault(item["category"], []).append(item)
 
+def _toggle_item(item_id: int, user_id: int, key: str) -> None:
+    """Callback on_change : enregistre la coche AVANT le rerun automatique
+    que Streamlit déclenche déjà tout seul après un changement de widget —
+    pas besoin d'un st.rerun() manuel en plus (même logique que
+    _move_step plus haut, qui évite ça pour les mêmes raisons)."""
+    db.set_shopping_item_checked(item_id, user_id, st.session_state[key])
+
+
 for category in common._ordered_categories(set(by_category.keys())):
     st.markdown(f"**{category}**")
     for item in by_category[category]:
-        checked_now = st.checkbox(item["label"], value=item["checked"], key=f"item_{item['id']}")
-        if checked_now != item["checked"]:
-            db.set_shopping_item_checked(item["id"], user_id, checked_now)
-            st.rerun()
+        item_key = f"item_{item['id']}"
+        st.checkbox(
+            item["label"], value=item["checked"], key=item_key,
+            on_change=_toggle_item, args=(item["id"], user_id, item_key),
+        )
 
 st.divider()
 
@@ -254,7 +269,9 @@ for i, r in enumerate(detail["recipes"]):
         with st.container(border=True):
             st.markdown(f"**{r['name']}**")
             st.caption(f"{r['people']} personne(s)")
-            if r["name"] not in all_recipes:
+            if r["name"] not in existing_recipe_names:
                 st.caption("⚠️ Cette recette a été supprimée depuis.")
             elif st.button("👀 Voir la recette", key=f"viewrecipe_{selected_id}_{i}", use_container_width=True):
-                _recipe_dialog(r["name"], r["people"], all_recipes[r["name"]])
+                # Chargement complet (avec photo) volontairement différé
+                # jusqu'ici, sur un clic explicite — pas à chaque rerun.
+                _recipe_dialog(r["name"], r["people"], db.get_all_recipes()[r["name"]])
