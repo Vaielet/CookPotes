@@ -91,6 +91,26 @@ def _recipe_dialog(name: str, people: int, recipe: dict) -> None:
         )
 
 
+def _load_list_detail(list_id: int, user_id: int) -> dict | None:
+    """
+    Charge le détail d'une liste UNE fois par sélection, puis le garde dans
+    st.session_state : les cases cochées ensuite ne redéclenchent plus
+    aucun aller-retour réseau vers Supabase pour réafficher la page (voir
+    _toggle_item, qui met à jour cette copie directement en mémoire au lieu
+    de recharger). Un changement de liste sélectionnée, ou une nouvelle
+    session/rechargement de page, repart sur des données fraîches.
+    """
+    cache_key = "_list_detail_cache"
+    cached = st.session_state.get(cache_key)
+    if cached is not None and cached["id"] == list_id:
+        return cached
+
+    fresh = db.get_saved_list(list_id, user_id)
+    if fresh is not None:
+        st.session_state[cache_key] = fresh
+    return fresh
+
+
 st.title("📋 Mes listes de courses")
 st.caption(
     "Retrouve ici les listes enregistrées depuis « 🛒 Générer ma liste ». "
@@ -143,11 +163,12 @@ st.session_state["open_list_id"] = selected_id
 delete_col.write("")
 if delete_col.button("🗑️ Supprimer cette liste", use_container_width=True):
     db.delete_saved_list(selected_id, user_id)
+    st.session_state.pop("_list_detail_cache", None)
     st.session_state["open_list_id"] = None
     st.session_state["_flash_list_msg"] = "Liste supprimée."
     st.rerun()
 
-detail = db.get_saved_list(selected_id, user_id)
+detail = _load_list_detail(selected_id, user_id)
 if detail is None:
     st.warning("Cette liste n'existe plus.")
     st.stop()
@@ -239,9 +260,25 @@ for item in detail["items"]:
 def _toggle_item(item_id: int, user_id: int, key: str) -> None:
     """Callback on_change : enregistre la coche AVANT le rerun automatique
     que Streamlit déclenche déjà tout seul après un changement de widget —
-    pas besoin d'un st.rerun() manuel en plus (même logique que
-    _move_step plus haut, qui évite ça pour les mêmes raisons)."""
-    db.set_shopping_item_checked(item_id, user_id, st.session_state[key])
+    pas besoin d'un st.rerun() manuel en plus (même logique que _move_step
+    plus haut).
+
+    Écrit aussi la nouvelle valeur directement dans la copie de la liste
+    déjà en mémoire (_load_list_detail) : sans ça, le corps du script
+    rechargerait toute la liste depuis Supabase à chaque case cochée, ce
+    qui causait le lag observé sur Streamlit Cloud (latence réseau vers la
+    base à chaque clic). Le cache partagé est quand même invalidé côté
+    db.py, donc un autre onglet ou un rechargement de page repart bien sur
+    des données à jour."""
+    new_value = st.session_state[key]
+    db.set_shopping_item_checked(item_id, user_id, new_value)
+
+    cached = st.session_state.get("_list_detail_cache")
+    if cached is not None:
+        for it in cached["items"]:
+            if it["id"] == item_id:
+                it["checked"] = new_value
+                break
 
 
 for category in common._ordered_categories(set(by_category.keys())):
