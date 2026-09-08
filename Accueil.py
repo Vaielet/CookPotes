@@ -148,14 +148,14 @@ pg = st.navigation(pages, position="hidden")
 
 
 # Injection CSS pour cibler l'image du logo dans la sidebar
-st.markdown(
-    """
-    img[data-testid="stLogo"] {
-            height: 300px;
+st.html("""
+  <style>
+    [alt=Logo] {
+      height: 3rem;
     }
-    """,
-    unsafe_allow_html=True
-)
+  </style>
+        """)
+
 st.logo(
     image="images/CookPotes_logo.png",
     #icon_image="chemin/vers/votre_icone.png", # Facultatif : affiché quand la sidebar est réduite
