@@ -61,7 +61,7 @@ Bienvenue ! Cette application te permet de :
         "composer ton menu. Indique le "
         "nombre de personnes pour chaque recette. Télécharge "
         "ta liste de courses et le carnet avec les recettes sélectionnées en PDF. "
-        "Si tu as un compte, tu peux enregistrer pour consulter "
+        "Si tu as un compte, tu peux enregistrer ton menu pour consulter "
         "la liste de courses et les recettes plus tard.")
 
     with col2:
