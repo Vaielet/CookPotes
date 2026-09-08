@@ -146,6 +146,11 @@ if auth.can_manage_products():
 # (pg.run() plus bas) et qui gère les URLs.
 pg = st.navigation(pages, position="hidden")
 
+st.sidebar.image(
+    "images/CookPotes_logo.png", 
+    width=150  # Spécifiez la largeur exacte en pixels
+)
+
 with st.sidebar:
     # Resserre l'espacement vertical entre les éléments du menu : par
     # défaut, Streamlit met ~1rem d'écart entre les blocs empilés dans la
