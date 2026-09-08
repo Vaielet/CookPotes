@@ -77,12 +77,6 @@ COMMON_TAGS = [
 ]
 
 # Icones personnalisées
-def _slug(name: str) -> str:
-    """Transforme un nom de fichier en identifiant sûr pour une clé de
-    container / classe CSS (lettres, chiffres, tirets seulement)."""
-    return re.sub(r"[^a-z0-9]+", "-", name.lower()).strip("-")
-
-
 def _icon_css(container_key: str, icon_path: Path, fallback_emoji: str, tag: str = "a") -> str:
     """
     Règle CSS qui insère l'icône juste avant le texte d'un élément (lien du
