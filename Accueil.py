@@ -167,9 +167,7 @@ st.html("""
   </style>
 """)
 
-with st.sidebar:
-    st.space(1)
-    
+with st.sidebar:    
     col1, col2, col3 = st.columns([1, 3, 1])
     with col2:
         st.image("images/CookPotes_logo_transparent.png", use_container_width=True)
