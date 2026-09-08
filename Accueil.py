@@ -147,44 +147,58 @@ if auth.can_manage_products():
 pg = st.navigation(pages, position="hidden")
 
 
-# Injection CSS pour centrer le logo horizontalement et ajuster les espacements
+# Injection CSS avancée avec media query pour la barre réduite
 st.html("""
   <style>
-    /* 1. Configuration de la zone d'en-tête (Sidebar OUVERTE) */
-    [data-testid="stSidebarHeader"] {
+    /* --- STYLES PAR DÉFAUT (Sidebar OUVERTE) --- */
+
+    /* Centre et donne de l'espace au conteneur principal */
+    div[data-testid="stSidebarHeader"] {
         display: flex !important;
-        justify-content: center !important;
-        align-items: center !important;
-        padding: 1.5rem 0.5rem 1rem 0.5rem !important;
+        justify-content: center !important; /* Centrage horizontal */
+        align-items: center !important;     /* Centrage vertical */
+        padding-top: 1.5rem !important;
+        padding-bottom: 1rem !important;
         height: auto !important;
+        max-height: none !important;
     }
 
-    /* 2. Taille et centrage du logo principal */
+    /* Définit la taille du logo et le centre */
     [alt="Logo"] {
-        height: 70px !important;
+        height: 100px !important; /* Taille sidebar ouverte */
         width: auto !important;
+        margin-left: auto !important;
+        margin-right: auto !important;
+        display: block !important;
         object-fit: contain !important;
-        margin: 0 auto !important;
+        transition: height 0.3s ease; /* Animation fluide lors du changement de taille */
     }
 
-    /* 3. Correction du débordement quand la sidebar est FERMÉE */
-    /* Masque proprement le grand logo dans le menu réduit pour éviter tout dépassement */
-    [data-testid="stSidebarCollapsedControl"] ~ div [alt="Logo"],
-    section[data-testid="stSidebar"][aria-expanded="false"] [alt="Logo"],
-    section[data-testid="stSidebar"][aria-expanded="false"] [data-testid="stSidebarHeader"] {
-        display: none !important;
+
+    /* --- STYLES SPÉCIFIQUES (Sidebar RÉDUITE / FERMÉE) --- */
+
+    /* Le sélecteur [data-sidebar-collapsed="true"] cible la sidebar quand elle est fermée */
+    [data-sidebar-collapsed="true"] div[data-testid="stSidebarHeader"] {
+        padding-top: 2.5rem !important; /* Moins d'espace en haut */
+        padding-bottom: 0.5rem !important;
+        justify-content: center !important;
     }
+
+    /* Réduit la taille du logo pour qu'il ne dépasse pas */
+    [data-sidebar-collapsed="true"] [alt="Logo"] {
+        height: 35px !important; /* Taille réduite sidebar fermée (ajustez si besoin) */
+        margin: 0 auto !important; /* Centrage strict */
+    }
+
   </style>
 """)
 
-# Optionnel : passez un `icon_image` plus petit (ex: juste l'icône de la casserole)
-# Il s'affichera automatiquement quand la sidebar sera réduite !
+# Utilisation de st.logo
 st.logo(
     image="images/CookPotes_logo_transparent.png",
-    # icon_image="images/CookPotes_icon.png", # Decommenter si vous avez une petite icône dédiée
+    # Vous n'avez pas besoin d'icon_image, le CSS gère le redimensionnement de l'image principale
     size="large"
 )
-
 with st.sidebar:
     # Resserre l'espacement vertical entre les éléments du menu : par
     # défaut, Streamlit met ~1rem d'écart entre les blocs empilés dans la
@@ -205,4 +219,3 @@ with st.sidebar:
         common.icon_page_link(page, icon_filename, fallback_emoji)
 
 pg.run()
-
