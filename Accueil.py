@@ -150,18 +150,9 @@ pg = st.navigation(pages, position="hidden")
 # Injection CSS pour cibler l'image du logo dans la sidebar
 st.markdown(
     """
-    <style>
-  div[data-testid="stSidebarHeader"] > img, div[data-testid="collapsedControl"] > img {
-      height: 180px;
-      width: auto;
-  }
-  
-  div[data-testid="stSidebarHeader"], div[data-testid="stSidebarHeader"] > *,
-  div[data-testid="collapsedControl"], div[data-testid="collapsedControl"] > * {
-      display: flex;
-      align-items: center;
-  }
-</style>
+    img[data-testid="stLogo"] {
+            height: 300px;
+    }
     """,
     unsafe_allow_html=True
 )
