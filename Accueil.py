@@ -147,18 +147,30 @@ if auth.can_manage_products():
 pg = st.navigation(pages, position="hidden")
 
 
-# Injection CSS pour cibler l'image du logo dans la sidebar
+# Injection CSS pour ajouter du padding et ajuster les marges du logo
 st.html("""
   <style>
-    [alt=Logo] {
-      height: 70px;
+    /* Cibler le conteneur principal de l'en-tête de la sidebar */
+    div[data-testid="stSidebarHeader"] {
+        padding-top: 1.5rem !important;
+        padding-bottom: 1.5rem !important;
+        height: auto !important;
+        max-height: none !important;
+    }
+
+    /* Cibler l'image du logo pour ajouter de la marge et conserver les proportions */
+    [alt="Logo"] {
+        height: 70px !important;
+        width: auto !important;
+        margin-top: 10px !important;
+        margin-bottom: 15px !important;
+        object-fit: contain !important;
     }
   </style>
-        """)
+""")
 
 st.logo(
     image="images/CookPotes_logo_transparent.png",
-    #icon_image="chemin/vers/votre_icone.png", # Facultatif : affiché quand la sidebar est réduite
     size="large"
 )
 with st.sidebar:
