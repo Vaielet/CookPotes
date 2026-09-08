@@ -126,7 +126,7 @@ if st.session_state.get("_flash_list_msg"):
 
 lists_summary = db.get_saved_lists(user_id)
 
-st.caption(f"{len(lists_summary)} / {db.MAX_SAVED_LISTS_PER_USER} liste(s) enregistrée(s).")
+st.caption(f"{len(lists_summary)} / {db.MAX_SAVED_LISTS_PER_USER} menu(s) enregistré(s).")
 
 if not lists_summary:
     st.info(
@@ -157,13 +157,13 @@ current_label = next(lbl for lbl, i in options.items() if i == st.session_state[
 
 select_col, delete_col = st.columns([4, 1])
 selected_label = select_col.selectbox(
-    "Choisis une liste", options=labels, index=labels.index(current_label),
+    "Choisis un menu", options=labels, index=labels.index(current_label),
 )
 selected_id = options[selected_label]
 st.session_state["open_list_id"] = selected_id
 
 delete_col.write("")
-if delete_col.button("🗑️ Supprimer cette liste", use_container_width=True):
+if delete_col.button("🗑️ Supprimer ce menu", use_container_width=True):
     db.delete_saved_list(selected_id, user_id)
     st.session_state.pop("_list_detail_cache", None)
     st.session_state["open_list_id"] = None
@@ -203,12 +203,11 @@ missing_recipes = [r["name"] for r in detail["recipes"] if r["name"] not in exis
 # Progression + liste de courses à cocher
 # ---------------------------------------------------------------------------
 
-with st.expander("Liste de courses"):
+with st.expander("🛒 Liste de courses"):
 
     total_items = len(detail["items"])
     checked_items = sum(1 for it in detail["items"] if it["checked"])
 
-    st.subheader("🛒 Liste de courses")
     if total_items:
         st.progress(checked_items / total_items, text=f"{checked_items} / {total_items} article(s) coché(s)")
 
