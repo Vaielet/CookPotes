@@ -247,17 +247,22 @@ if view == "results":
     st.divider()
     if auth.is_logged_in():
         if st.button("💾 Enregistrer cette liste dans mon compte", type="primary"):
-            db.save_shopping_list(
-                user_id=auth.current_user_id(),
-                reference=reference,
-                recipe_choices=[(c.name, c.people) for c in choices],
-                grouped_items=grouped,
-            )
-            st.success(
-                "Liste enregistrée ! Retrouve-la, coche les articles au fur "
-                "et à mesure, et affiche tes recettes sur la page « 📋 Mes listes »."
-            )
-            st.page_link("pages/5_📋_Mes_listes.py", label="📋 Aller à Mes listes", icon="📋")
+            try:
+                db.save_shopping_list(
+                    user_id=auth.current_user_id(),
+                    reference=reference,
+                    recipe_choices=[(c.name, c.people) for c in choices],
+                    grouped_items=grouped,
+                )
+            except db.SavedListLimitReached as exc:
+                st.error(str(exc))
+                st.page_link("pages/5_📋_Mes_listes.py", label="📋 Aller à Mes listes", icon="📋")
+            else:
+                st.success(
+                    "Liste enregistrée ! Retrouve-la, coche les articles au fur "
+                    "et à mesure, et affiche tes recettes sur la page « 📋 Mes listes »."
+                )
+                st.page_link("pages/5_📋_Mes_listes.py", label="📋 Aller à Mes listes", icon="📋")
     else:
         st.caption(
             "🔒 Connecte-toi (menu de gauche) pour enregistrer cette liste "
