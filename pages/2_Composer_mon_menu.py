@@ -1,5 +1,5 @@
 """
-Page 2 — Générer mon menu.
+Page 2 — Composer mon menu.
 
 L'utilisateur choisit des recettes parmi celles enregistrées en base
 (avec recherche, filtre par catégorie et par auteur·rice), le nombre de
@@ -301,7 +301,7 @@ if view == "results":
 
 title_col, cart_col = st.columns([5, 2])
 with title_col:
-    common.icon_title("Générer mon menu", "generer_mon_menu.png", "🛒")
+    common.icon_title("Composer mon menu", "generer_mon_menu.png", "🛒")
 with cart_col:
     st.write("")
     with st.popover(f"Mon menu ({len(cart_ids)})", use_container_width=True):
