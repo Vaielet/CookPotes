@@ -198,46 +198,6 @@ current_choices = [
 ]
 missing_recipes = [r["name"] for r in detail["recipes"] if r["name"] not in existing_recipe_names]
 
-with st.expander("Téléchargement"):
-
-    action_cols = st.columns(2)
-
-    with action_cols[0]:
-        with st.container(border=True):
-            st.subheader("🧾 Liste de courses")
-            st.download_button(
-                "⬇️ Télécharger la liste (.txt)",
-                data=common.build_shopping_text(list_title, export_grouped),
-                file_name=f"{list_title}.txt", mime="text/plain",
-                use_container_width=True, disabled=not export_grouped,
-            )
-            common.render_share_widget(common.build_shopping_text(list_title, export_grouped))
-
-
-    with action_cols[1]:
-        with st.container(border=True):
-            st.subheader("📕 Carnet de recettes")
-            booklet_key = f"_booklet_pdf_{selected_id}"
-            if st.button("📖 Générer le carnet de recettes", use_container_width=True, disabled=not current_choices):
-                # Chargement complet (avec photos) volontairement différé jusqu'ici :
-                # seule une action explicite et ponctuelle le déclenche, jamais un
-                # simple rerun (case cochée, etc.).
-                all_recipes = db.get_all_recipes()
-                st.session_state[booklet_key] = common.build_recipe_booklet_pdf(
-                    current_choices, all_recipes, title=list_title,
-                )
-            if st.session_state.get(booklet_key):
-                st.download_button(
-                    "⬇️ Télécharger le PDF", data=st.session_state[booklet_key],
-                    file_name=f"carnet_{selected_id}.pdf", mime="application/pdf",
-                    use_container_width=True,
-                )
-
-    if missing_recipes:
-        st.caption(f"⚠️ Recette(s) supprimée(s) depuis, exclue(s) du carnet : {', '.join(missing_recipes)}.")
-
-
-
 
 # ---------------------------------------------------------------------------
 # Progression + liste de courses à cocher
@@ -317,3 +277,41 @@ for i, r in enumerate(detail["recipes"]):
                 # différé jusqu'ici, sur un clic explicite — pas à chaque
                 # rerun. La photo, elle, est déjà chargée ci-dessus (vignette).
                 _recipe_dialog(r["name"], r["people"], db.get_all_recipes()[r["name"]])
+
+with st.expander("Téléchargement"):
+
+    action_cols = st.columns(2)
+
+    with action_cols[0]:
+        with st.container(border=True):
+            st.subheader("🧾 Liste de courses")
+            st.download_button(
+                "⬇️ Télécharger la liste (.txt)",
+                data=common.build_shopping_text(list_title, export_grouped),
+                file_name=f"{list_title}.txt", mime="text/plain",
+                use_container_width=True, disabled=not export_grouped,
+            )
+            common.render_share_widget(common.build_shopping_text(list_title, export_grouped))
+
+
+    with action_cols[1]:
+        with st.container(border=True):
+            st.subheader("📕 Carnet de recettes")
+            booklet_key = f"_booklet_pdf_{selected_id}"
+            if st.button("📖 Générer le carnet de recettes", use_container_width=True, disabled=not current_choices):
+                # Chargement complet (avec photos) volontairement différé jusqu'ici :
+                # seule une action explicite et ponctuelle le déclenche, jamais un
+                # simple rerun (case cochée, etc.).
+                all_recipes = db.get_all_recipes()
+                st.session_state[booklet_key] = common.build_recipe_booklet_pdf(
+                    current_choices, all_recipes, title=list_title,
+                )
+            if st.session_state.get(booklet_key):
+                st.download_button(
+                    "⬇️ Télécharger le PDF", data=st.session_state[booklet_key],
+                    file_name=f"carnet_{selected_id}.pdf", mime="application/pdf",
+                    use_container_width=True,
+                )
+
+    if missing_recipes:
+        st.caption(f"⚠️ Recette(s) supprimée(s) depuis, exclue(s) du carnet : {', '.join(missing_recipes)}.")
