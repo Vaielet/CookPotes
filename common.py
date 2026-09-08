@@ -84,6 +84,9 @@ COMMON_TAGS = [
 # Longueur maximale du petit texte de présentation d'une recette. 
 MAX_DESCRIPTION_CHARS = 300
 
+# Longueur maximale du titre de la recette. 
+MAX_TITLE_CHARS = 100
+
 def header_logo():
     col1, col2, col3 = st.columns(3)
     with col2:
