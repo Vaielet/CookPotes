@@ -146,27 +146,29 @@ if auth.can_manage_products():
 # (pg.run() plus bas) et qui gère les URLs.
 pg = st.navigation(pages, position="hidden")
 
-# Masque le bouton plein écran UNIQUEMENT pour les images de la sidebar
+import streamlit as st
+
+# --- 1. INJECTION CSS EN HAUT DE PAGE (SANS LE PLACER DANS LA SIDEBAR) ---
 st.html("""
   <style>
-    /* 1. Masque l'overlay et le bouton d'agrandissement dans la sidebar */
-    section[data-testid="stSidebar"] [data-testid="stImage"] button,
-    section[data-testid="stSidebar"] [data-testid="stImage"] [data-testid="stElementActionSet"],
-    section[data-testid="stSidebar"] button[title*="fullscreen" i],
-    section[data-testid="stSidebar"] button[title*="plein écran" i] {
-        display: none !important;
-        visibility: hidden !important;
-        opacity: 0 !important;
+    /* Désactive toutes les actions et survol sur les images dans la sidebar */
+    [data-testid="stSidebar"] [data-testid="stImage"] {
         pointer-events: none !important;
     }
 
-    /* 2. Empêche l'apparition des effets au survol de l'image du logo */
-    section[data-testid="stSidebar"] [data-testid="stImage"] {
-        pointer-events: none !important;
+    /* Masque directement le conteneur du bouton plein écran */
+    [data-testid="stSidebar"] [data-testid="stElementActionSet"],
+    [data-testid="stSidebar"] button[title*="fullscreen" i],
+    [data-testid="stSidebar"] button[title*="plein écran" i],
+    [data-testid="stSidebar"] button[data-testid="StyledFullScreenButton"] {
+        display: none !important;
+        opacity: 0 !important;
+        visibility: hidden !important;
     }
   </style>
 """)
 
+# --- 2. CODE DE VOTRE SIDEBAR ---
 with st.sidebar:
     st.space(2)
     
