@@ -78,7 +78,7 @@ def render_sidebar_auth() -> None:
     """Affiche le statut de connexion, et le formulaire de connexion/déconnexion, dans la sidebar."""
     with st.sidebar:
         #st.markdown("### 👤 Compte")
-        common.icon_title("Compte", "generer_mon_menu.png", "👤", size=36)
+        #common.icon_title("Compte", "generer_mon_menu.png", "👤", size=36)
         if is_logged_in():
             if is_admin():
                 role_label = "Administrateur·rice"
