@@ -150,7 +150,7 @@ st.markdown(
     """
     <style>
     [data-testid="stLogo"] {
-        width: 180px;
+        width: 500px;
         height: auto;
     }
     </style>
