@@ -146,23 +146,6 @@ if auth.can_manage_products():
 # (pg.run() plus bas) et qui gère les URLs.
 pg = st.navigation(pages, position="hidden")
 
-st.markdown(
-    """
-    <style>
-    [data-testid="stLogo"] {
-        width: 500px;
-        height: auto;
-    }
-    </style>
-    """,
-    unsafe_allow_html=True
-)
-
-st.logo(
-    image="images/CookPotes_logo.png",
-    #icon_image="chemin/vers/votre_icone.png", # Facultatif : affiché quand la sidebar est réduite
-)
-
 with st.sidebar:
     # Resserre l'espacement vertical entre les éléments du menu : par
     # défaut, Streamlit met ~1rem d'écart entre les blocs empilés dans la
@@ -179,7 +162,7 @@ with st.sidebar:
         """,
         unsafe_allow_html=True,
     )
-
+    st.image("images/CookPotes_logo.png", use_column_width=True)
     for page, icon_filename, fallback_emoji in NAV_ITEMS:
         common.icon_page_link(page, icon_filename, fallback_emoji)
 
