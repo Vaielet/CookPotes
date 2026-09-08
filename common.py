@@ -10,6 +10,7 @@ import streamlit as st
 import base64
 import html
 import io
+import mimetypes
 import platform
 import re
 import subprocess
@@ -18,6 +19,7 @@ from dataclasses import dataclass, field
 from collections import defaultdict
 from datetime import datetime
 from fractions import Fraction
+from pathlib import Path
 
 from PIL import Image, ImageDraw, ImageFont, ImageOps
 
@@ -84,6 +86,132 @@ def header_logo():
     col1, col2, col3 = st.columns(3)
     with col2:
         st.image("images/CookPotes_logo.png", output_format="PNG", width=1000)
+
+
+# ---------------------------------------------------------------------------
+# Icônes personnalisées (menu de navigation, boutons) — utilisables depuis
+# n'importe quelle page de l'appli, pas seulement Accueil.py. Un fichier
+# d'icône manquant dans images/icons/ ne casse jamais rien : l'émoji de
+# secours prend le relais automatiquement.
+# ---------------------------------------------------------------------------
+
+ICONS_DIR = Path(__file__).parent / "images" / "icons"
+
+
+def slug(name: str) -> str:
+    """Transforme un nom en identifiant sûr pour une clé de container /
+    classe CSS (lettres, chiffres, tirets seulement)."""
+    return re.sub(r"[^a-z0-9]+", "-", name.lower()).strip("-")
+
+
+def icon_css(
+    container_key: str,
+    icon_path: Path,
+    fallback_emoji: str,
+    tag: str = "a",
+    justify: str = "flex-start",
+) -> str:
+    """
+    Règle CSS qui insère une icône juste avant le texte d'un élément (lien
+    du menu, ou bouton — via `tag="button"`), DANS l'élément lui-même
+    (pseudo-élément ::before), plutôt que dans une colonne Streamlit
+    séparée à côté. Deux avantages par rapport à une mise en page en
+    colonnes :
+      - alignement pile au pixel près, puisque icône et texte appartiennent
+        au même élément flexbox ;
+      - jamais d'empilement vertical sur mobile, puisqu'il n'y a qu'UN
+        seul composant Streamlit — les st.columns, elles, s'empilent sous
+        une certaine largeur d'écran.
+
+    Si le fichier d'icône n'existe pas, l'émoji de secours est utilisé
+    comme contenu texte du pseudo-élément — aucune image à charger.
+
+    `justify` règle l'alignement horizontal du contenu (icône + texte) :
+    "flex-start" par défaut (aligné à gauche, adapté à un menu), ou
+    "center" pour un gros bouton d'action centré (voir `icon_button`).
+    """
+    if icon_path.exists():
+        mime = mimetypes.guess_type(icon_path.name)[0] or "image/png"
+        b64 = base64.b64encode(icon_path.read_bytes()).decode()
+        before_content = f"""
+            content: "";
+            background-image: url("data:{mime};base64,{b64}");
+            background-size: contain;
+            background-repeat: no-repeat;
+            background-position: center;
+            width: 26px;
+            height: 26px;
+        """
+    else:
+        before_content = f"""
+            content: "{fallback_emoji}";
+            font-size: 1.4em;
+            line-height: 1;
+            width: 26px;
+            text-align: center;
+        """
+    return f"""
+        .st-key-{container_key} {tag} {{
+            display: flex;
+            align-items: center;
+            justify-content: {justify};
+            gap: 0.6em;
+        }}
+        .st-key-{container_key} {tag}::before {{
+            {before_content}
+            display: inline-block;
+            flex-shrink: 0;
+        }}
+    """
+
+
+def icon_button(
+    label: str,
+    icon_filename: str,
+    fallback_emoji: str,
+    key: str,
+    justify: str = "center",
+    **button_kwargs,
+) -> bool:
+    """
+    st.button avec une icône perso collée devant le texte (fichier attendu
+    dans images/icons/<icon_filename> ; l'émoji de secours est utilisé tant
+    que ce fichier n'existe pas). Centré par défaut, comme un gros bouton
+    d'action ; passe `justify="flex-start"` pour un bouton aligné à gauche.
+
+    Exemple :
+        if common.icon_button("Générer ma liste", "generer_mon_menu.png", "🛒", key="btn_generer"):
+            st.switch_page("pages/2_Generer_ma_liste.py")
+    """
+    container_key = f"iconbtn-{slug(key)}"
+    with st.container(key=container_key):
+        clicked = st.button(label, key=key, **button_kwargs)
+    st.markdown(
+        f"<style>{icon_css(container_key, ICONS_DIR / icon_filename, fallback_emoji, tag='button', justify=justify)}</style>",
+        unsafe_allow_html=True,
+    )
+    return clicked
+
+
+def icon_page_link(
+    page,
+    icon_filename: str,
+    fallback_emoji: str,
+    label: str | None = None,
+    justify: str = "flex-start",
+) -> None:
+    """
+    st.page_link avec une icône perso collée devant le texte, alignée à
+    gauche par défaut — adapté à un élément de menu de navigation (voir
+    `icon_button` pour un bouton d'action).
+    """
+    container_key = f"navitem-{slug(Path(icon_filename).stem)}"
+    with st.container(key=container_key):
+        st.page_link(page, label=label or page.title)
+    st.markdown(
+        f"<style>{icon_css(container_key, ICONS_DIR / icon_filename, fallback_emoji, tag='a', justify=justify)}</style>",
+        unsafe_allow_html=True,
+    )
 
 
 def format_datetime(iso_string: str | None) -> str:
