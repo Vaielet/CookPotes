@@ -90,7 +90,7 @@ MAX_TITLE_CHARS = 60
 def header_logo():
     col1, col2, col3 = st.columns(3)
     with col2:
-        st.image("images/CookPotes_logo.png", output_format="PNG", width=1000)
+        st.image("images/CookPotes_logo_with_subtitle.png", output_format="PNG", width=1000)
 
 
 # ---------------------------------------------------------------------------
