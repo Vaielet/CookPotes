@@ -33,6 +33,9 @@ from reportlab.platypus import (
     Table, TableStyle, ListFlowable, ListItem,
 )
 
+import json
+import streamlit.components.v1 as components
+
 # ---------------------------------------------------------------------------
 # Conversions d'unités pour l'agrégation de la liste de courses
 # ---------------------------------------------------------------------------
