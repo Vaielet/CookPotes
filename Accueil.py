@@ -149,7 +149,7 @@ pg = st.navigation(pages, position="hidden")
 st.logo(
     image="images/CookPotes_logo.png",
     #icon_image="chemin/vers/votre_icone.png", # Facultatif : affiché quand la sidebar est réduite
-    size="medium"  # Options : "small", "medium" (par défaut), "large"
+    size="large"  # Options : "small", "medium" (par défaut), "large"
 )
 
 with st.sidebar:
