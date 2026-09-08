@@ -152,7 +152,7 @@ st.markdown(
     """
     <style>
   div[data-testid="stSidebarHeader"] > img, div[data-testid="collapsedControl"] > img {
-      height: 3rem;
+      height: 180px;
       width: auto;
   }
   
