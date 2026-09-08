@@ -18,7 +18,6 @@ from dataclasses import dataclass, field
 from collections import defaultdict
 from datetime import datetime
 from fractions import Fraction
-from pathlib import Path
 
 from PIL import Image, ImageDraw, ImageFont, ImageOps
 
@@ -76,62 +75,6 @@ COMMON_TAGS = [
     "Entrée",
     "Dessert",
 ]
-
-# Icones personnalisées
-ICONS_DIR = Path(__file__).parent / "images"
-def _slug(name: str) -> str:
-    """Transforme un nom de fichier en identifiant sûr pour une clé de
-    container / classe CSS (lettres, chiffres, tirets seulement)."""
-    return re.sub(r"[^a-z0-9]+", "-", name.lower()).strip("-")
-def _icon_css(container_key: str, icon_path: Path, fallback_emoji: str, tag: str = "a") -> str:
-    """
-    Règle CSS qui insère l'icône juste avant le texte d'un élément (lien du
-    menu, ou bouton — via `tag="button"`), DANS l'élément lui-même
-    (pseudo-élément ::before), plutôt que dans une colonne Streamlit
-    séparée à côté. Deux avantages par rapport à une mise en page en
-    colonnes :
-      - alignement pile au pixel près, puisque icône et texte appartiennent
-        au même élément flexbox ;
-      - jamais d'empilement vertical sur mobile, puisqu'il n'y a qu'UN
-        seul composant Streamlit — les st.columns, elles, s'empilent sous
-        une certaine largeur d'écran.
-
-    Si le fichier d'icône n'existe pas, l'émoji de secours est utilisé
-    comme contenu texte du pseudo-élément — aucune image à charger.
-    """
-    if icon_path.exists():
-        mime = mimetypes.guess_type(icon_path.name)[0] or "image/png"
-        b64 = base64.b64encode(icon_path.read_bytes()).decode()
-        before_content = f"""
-            content: "";
-            background-image: url("data:{mime};base64,{b64}");
-            background-size: contain;
-            background-repeat: no-repeat;
-            background-position: center;
-            width: 26px;
-            height: 26px;
-        """
-    else:
-        before_content = f"""
-            content: "{fallback_emoji}";
-            font-size: 1.4em;
-            line-height: 1;
-            width: 26px;
-            text-align: center;
-        """
-    return f"""
-        .st-key-{container_key} {tag} {{
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            gap: 0.6em;
-        }}
-        .st-key-{container_key} {tag}::before {{
-            {before_content}
-            display: inline-block;
-            flex-shrink: 0;
-        }}
-    """
 
 # Longueur maximale du petit texte de présentation d'une recette. Doit
 # correspondre à db.MAX_DESCRIPTION_CHARS.
