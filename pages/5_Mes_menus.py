@@ -203,51 +203,51 @@ missing_recipes = [r["name"] for r in detail["recipes"] if r["name"] not in exis
 # Progression + liste de courses à cocher
 # ---------------------------------------------------------------------------
 
-total_items = len(detail["items"])
-checked_items = sum(1 for it in detail["items"] if it["checked"])
+with st.expander("Liste de courses"):
 
-st.subheader("🛒 Liste de courses")
-if total_items:
-    st.progress(checked_items / total_items, text=f"{checked_items} / {total_items} article(s) coché(s)")
+    total_items = len(detail["items"])
+    checked_items = sum(1 for it in detail["items"] if it["checked"])
 
-by_category: dict[str, list[dict]] = {}
-for item in detail["items"]:
-    by_category.setdefault(item["category"], []).append(item)
+    st.subheader("🛒 Liste de courses")
+    if total_items:
+        st.progress(checked_items / total_items, text=f"{checked_items} / {total_items} article(s) coché(s)")
 
-def _toggle_item(item_id: int, user_id: int, key: str) -> None:
-    """Callback on_change : enregistre la coche AVANT le rerun automatique
-    que Streamlit déclenche déjà tout seul après un changement de widget —
-    pas besoin d'un st.rerun() manuel en plus (même logique que _move_step
-    plus haut).
+    by_category: dict[str, list[dict]] = {}
+    for item in detail["items"]:
+        by_category.setdefault(item["category"], []).append(item)
 
-    Écrit aussi la nouvelle valeur directement dans la copie de la liste
-    déjà en mémoire (_load_list_detail) : sans ça, le corps du script
-    rechargerait toute la liste depuis Supabase à chaque case cochée, ce
-    qui causait le lag observé sur Streamlit Cloud (latence réseau vers la
-    base à chaque clic). Le cache partagé est quand même invalidé côté
-    db.py, donc un autre onglet ou un rechargement de page repart bien sur
-    des données à jour."""
-    new_value = st.session_state[key]
-    db.set_shopping_item_checked(item_id, user_id, new_value)
+    def _toggle_item(item_id: int, user_id: int, key: str) -> None:
+        """Callback on_change : enregistre la coche AVANT le rerun automatique
+        que Streamlit déclenche déjà tout seul après un changement de widget —
+        pas besoin d'un st.rerun() manuel en plus (même logique que _move_step
+        plus haut).
 
-    cached = st.session_state.get("_list_detail_cache")
-    if cached is not None:
-        for it in cached["items"]:
-            if it["id"] == item_id:
-                it["checked"] = new_value
-                break
-
-
-for category in common._ordered_categories(set(by_category.keys())):
-    st.markdown(f"**{category}**")
-    for item in by_category[category]:
-        item_key = f"item_{item['id']}"
-        st.checkbox(
-            item["label"], value=item["checked"], key=item_key,
-            on_change=_toggle_item, args=(item["id"], user_id, item_key),
-        )
-
-st.divider()
+        Écrit aussi la nouvelle valeur directement dans la copie de la liste
+        déjà en mémoire (_load_list_detail) : sans ça, le corps du script
+        rechargerait toute la liste depuis Supabase à chaque case cochée, ce
+        qui causait le lag observé sur Streamlit Cloud (latence réseau vers la
+        base à chaque clic). Le cache partagé est quand même invalidé côté
+        db.py, donc un autre onglet ou un rechargement de page repart bien sur
+        des données à jour."""
+        new_value = st.session_state[key]
+        db.set_shopping_item_checked(item_id, user_id, new_value)
+    
+        cached = st.session_state.get("_list_detail_cache")
+        if cached is not None:
+            for it in cached["items"]:
+                if it["id"] == item_id:
+                    it["checked"] = new_value
+                    break
+    
+    
+    for category in common._ordered_categories(set(by_category.keys())):
+        st.markdown(f"**{category}**")
+        for item in by_category[category]:
+            item_key = f"item_{item['id']}"
+            st.checkbox(
+                item["label"], value=item["checked"], key=item_key,
+                on_change=_toggle_item, args=(item["id"], user_id, item_key),
+            )
 
 
 # ---------------------------------------------------------------------------
