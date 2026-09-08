@@ -28,7 +28,7 @@ common.header_logo()
 
 auth.require_product_curator()
 
-common.icon_title("Gestion des utilisateur·rices", "gestion_produits.png", "🧺")
+common.icon_title("Gestion des produits", "gestion_produits.png", "🧺")
 
 st.caption(
     "Harmonise les noms d'ingrédients (synonymes) et leur rayon, utilisés "
