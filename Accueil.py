@@ -62,7 +62,7 @@ def home_page() -> None:
     st.markdown(
         f"""
         <div style="display: flex; justify-content: center; align-items: center; width: 100%;">
-            <img src="data:image/png;base64,{logo_with_subtitle_b64}" style="width: 60%; max-width: 160px; height: auto;">
+            <img src="data:image/png;base64,{logo_with_subtitle_b64}" style="width: 60%; max-width: 200px; height: auto;">
         </div>
         """,
         unsafe_allow_html=True
