@@ -243,7 +243,7 @@ def icon_title(
     level: str = "h1",
     key: str | None = None,
     justify: str = "flex-start",
-    size: int = 60,
+    size: int = 100,
 ) -> None:
     """
     Titre avec une icône perso collée devant le texte, à la place d'un
