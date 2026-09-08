@@ -147,37 +147,58 @@ if auth.can_manage_products():
 pg = st.navigation(pages, position="hidden")
 
 
-# Injection CSS pour centrer le logo horizontalement et ajuster les espacements
+# Injection CSS avancée avec media query pour la barre réduite
 st.html("""
   <style>
-    /* 1. Aligner le conteneur parent au centre */
+    /* --- STYLES PAR DÉFAUT (Sidebar OUVERTE) --- */
+
+    /* Centre et donne de l'espace au conteneur principal */
     div[data-testid="stSidebarHeader"] {
         display: flex !important;
         justify-content: center !important; /* Centrage horizontal */
         align-items: center !important;     /* Centrage vertical */
-        padding-top: 0.5rem !important;
-        padding-bottom: 0.5rem !important;
+        padding-top: 1.5rem !important;
+        padding-bottom: 1rem !important;
         height: auto !important;
         max-height: none !important;
     }
 
-    /* 2. Ajuster l'image pour qu'elle s'aligne proprement au centre */
+    /* Définit la taille du logo et le centre */
     [alt="Logo"] {
-        height: 120px !important;
+        height: 100px !important; /* Taille sidebar ouverte */
         width: auto !important;
         margin-left: auto !important;
         margin-right: auto !important;
         display: block !important;
         object-fit: contain !important;
+        transition: height 0.3s ease; /* Animation fluide lors du changement de taille */
     }
+
+
+    /* --- STYLES SPÉCIFIQUES (Sidebar RÉDUITE / FERMÉE) --- */
+
+    /* Le sélecteur [data-sidebar-collapsed="true"] cible la sidebar quand elle est fermée */
+    [data-sidebar-collapsed="true"] div[data-testid="stSidebarHeader"] {
+        padding-top: 0.5rem !important; /* Moins d'espace en haut */
+        padding-bottom: 0.5rem !important;
+        justify-content: center !important;
+    }
+
+    /* Réduit la taille du logo pour qu'il ne dépasse pas */
+    [data-sidebar-collapsed="true"] [alt="Logo"] {
+        height: 35px !important; /* Taille réduite sidebar fermée (ajustez si besoin) */
+        margin: 0 auto !important; /* Centrage strict */
+    }
+
   </style>
 """)
 
+# Utilisation de st.logo
 st.logo(
     image="images/CookPotes_logo_transparent.png",
+    # Vous n'avez pas besoin d'icon_image, le CSS gère le redimensionnement de l'image principale
     size="large"
 )
-
 with st.sidebar:
     # Resserre l'espacement vertical entre les éléments du menu : par
     # défaut, Streamlit met ~1rem d'écart entre les blocs empilés dans la
