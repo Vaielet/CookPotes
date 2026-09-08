@@ -179,7 +179,7 @@ def icon_button(
     fallback_emoji: str,
     key: str,
     justify: str = "center",
-    size: int = 30,
+    size: int = 40,
     **button_kwargs,
 ) -> bool:
     """
@@ -243,7 +243,7 @@ def icon_title(
     level: str = "h1",
     key: str | None = None,
     justify: str = "flex-start",
-    size: int = 40,
+    size: int = 60,
 ) -> None:
     """
     Titre avec une icône perso collée devant le texte, à la place d'un
