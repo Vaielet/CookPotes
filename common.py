@@ -81,8 +81,7 @@ COMMON_TAGS = [
     "Dessert",
 ]
 
-# Longueur maximale du petit texte de présentation d'une recette. Doit
-# correspondre à db.MAX_DESCRIPTION_CHARS.
+# Longueur maximale du petit texte de présentation d'une recette. 
 MAX_DESCRIPTION_CHARS = 300
 
 def header_logo():
