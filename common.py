@@ -139,8 +139,8 @@ def icon_css(
             background-size: contain;
             background-repeat: no-repeat;
             background-position: center;
-            width: 30px;
-            height: 30px;
+            width: 26px;
+            height: 26px;
         """
     else:
         before_content = f"""
@@ -217,6 +217,45 @@ def icon_page_link(
         # injecté ici, à l'intérieur du container, pas juste après.
         st.markdown(
             f"<style>{icon_css(container_key, ICONS_DIR / icon_filename, fallback_emoji, tag='a', justify=justify)}</style>",
+            unsafe_allow_html=True,
+        )
+
+
+_ICON_TITLE_HEADING_FUNCS = {"h1": st.title, "h2": st.header, "h3": st.subheader}
+
+
+def icon_title(
+    text: str,
+    icon_filename: str,
+    fallback_emoji: str,
+    level: str = "h1",
+    key: str | None = None,
+    justify: str = "flex-start",
+) -> None:
+    """
+    Titre avec une icône perso collée devant le texte, à la place d'un
+    emoji dans la chaîne — utilisable pour un titre de page (st.title),
+    un st.header ou un st.subheader, mais aussi pour un petit titre de
+    section dans la sidebar (ex: « Compte » au-dessus du formulaire de
+    connexion).
+
+    `level` : "h1" (st.title, par défaut), "h2" (st.header) ou "h3"
+    (st.subheader) — doit correspondre à la balise HTML réellement
+    produite par ces fonctions Streamlit, puisque c'est ce qui est ciblé
+    par le CSS généré (voir `icon_css`).
+
+    Exemple :
+        common.icon_title("Ta liste de courses", "generer_mon_menu.png", "🛒")
+        # au lieu de st.title("🛒 Ta liste de courses")
+    """
+    heading_fn = _ICON_TITLE_HEADING_FUNCS.get(level)
+    if heading_fn is None:
+        raise ValueError(f"level inconnu : {level!r} (attendu : 'h1', 'h2' ou 'h3')")
+    container_key = f"icontitle-{slug(key or text)}"
+    with st.container(key=container_key):
+        heading_fn(text)
+        st.markdown(
+            f"<style>{icon_css(container_key, ICONS_DIR / icon_filename, fallback_emoji, tag=level, justify=justify)}</style>",
             unsafe_allow_html=True,
         )
 
