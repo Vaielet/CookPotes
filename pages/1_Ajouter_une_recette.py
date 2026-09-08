@@ -23,7 +23,7 @@ import auth
 import db
 import common
 
-st.set_page_config(page_title="Ajouter / modifier une recette", page_icon="🍳", layout="wide")
+st.set_page_config(page_title="Ajouter une recette", layout="wide")
 
 db.init_db()
 
@@ -31,11 +31,11 @@ common.header_logo()
 
 auth.require_editor()
 
-st.title("🍳 Ajoute une recette")
+common.icon_title("Ajouter une recette", "ajouter_une_recette.png", "🍳")
 st.caption(
     "Encode une nouvelle recette. Les nouvelles recettes sont enregistrés dans la base "
     "de données et disponibles pour tou·tes les utilisateur·rices"
-    " immédiatement sur la page « Générer ma liste »."
+    " immédiatement sur la page « Composer mon menu »."
 )
 
 
