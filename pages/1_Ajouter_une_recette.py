@@ -9,9 +9,9 @@ de page).
 Note technique sur le formulaire dynamique (sections/ingrédients) :
 Streamlit interdit de modifier st.session_state[key] APRÈS que le widget
 portant cette key a déjà été instancié dans le run en cours. Toute remise à
-zéro ou pré-remplissage du formulaire (ajout réussi, passage en mode
-édition, annulation) se fait donc via un drapeau traité tout en haut du
-script, AVANT la création des widgets.
+zéro ou pré-remplissage du formulaire (ajout RÉUSSI, modification RÉUSSIE,
+passage en mode édition, annulation) se fait donc via un drapeau traité
+tout en haut du script, AVANT la création des widgets.
 """
 
 import uuid
@@ -62,6 +62,17 @@ def _sections_from_recipe_data(ingredients: dict) -> list:
 
 
 def _blank_form_state() -> None:
+    # Purge les clés de widgets par ligne/section de l'ancien formulaire —
+    # sans ça elles restent orphelines dans session_state indéfiniment
+    # (sans incidence fonctionnelle, puisque les nouvelles lignes ont de
+    # nouveaux uuid, mais autant nettoyer correctement).
+    for sec in st.session_state.get("new_recipe_sections", []):
+        st.session_state.pop(f"secname_{sec['id']}", None)
+        for row in sec["rows"]:
+            st.session_state.pop(f"iname_{row['id']}", None)
+            st.session_state.pop(f"iqty_{row['id']}", None)
+            st.session_state.pop(f"iunit_{row['id']}", None)
+
     st.session_state["form_mode"] = "add"
     st.session_state["form_recipe_id"] = None
     st.session_state["form_existing_image"] = None
@@ -519,9 +530,14 @@ else:
                 if btn_cols[0].button("✏️ Modifier", key=f"editrecipe_{data['id']}", use_container_width=True):
                     st.session_state["_pending_edit_id"] = data["id"]
                     st.rerun()
-                if btn_cols[1].button("🗑️ Supprimer", key=f"delrecipe_{data['id']}", use_container_width=True):
-                    db.delete_recipe(data["id"])
-                    st.session_state["_flash_success"] = f"Recette « {name} » supprimée."
-                    st.rerun()
+                with btn_cols[1].popover("🗑️ Supprimer", use_container_width=True):
+                    st.warning(f"Es-tu sûr·e de vouloir supprimer « {name} » ? Cette action est irréversible.")
+                    if st.button(
+                        "✅ Oui, supprimer définitivement", key=f"confirmdel_{data['id']}",
+                        type="primary", use_container_width=True,
+                    ):
+                        db.delete_recipe(data["id"])
+                        st.session_state["_flash_success"] = f"Recette « {name} » supprimée."
+                        st.rerun()
             else:
                 st.caption("🔒 La modification et la suppression sont réservées aux administrateurs.")
