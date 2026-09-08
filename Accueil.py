@@ -146,6 +146,16 @@ if auth.can_manage_products():
 # (pg.run() plus bas) et qui gère les URLs.
 pg = st.navigation(pages, position="hidden")
 
+# Masque le bouton plein écran UNIQUEMENT pour les images de la sidebar
+st.html("""
+  <style>
+    /* Ciblage du bouton plein écran uniquement dans la barre latérale */
+    section[data-testid="stSidebar"] button[title="View fullscreen"],
+    section[data-testid="stSidebar"] button[data-testid="StyledFullScreenButton"] {
+        display: none !important;
+    }
+  </style>
+""")
 
 with st.sidebar:
     # Resserre l'espacement vertical entre les éléments du menu : par
