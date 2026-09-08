@@ -156,7 +156,8 @@ st.subheader("Informations générales")
 
 c1, c2 = st.columns([2, 1])
 recipe_name = c1.text_input(
-    "Nom de la recette", key="new_recipe_name", placeholder="ex : Curry de pois chiches"
+    "Nom de la recette", key="new_recipe_name", placeholder="ex : Curry de pois chiches",
+    max_chars=common.MAX_TITLE_CHARS
 )
 portions_base = c2.number_input(
     "Nombre de personnes (base)", min_value=1, step=1, key="new_recipe_portions"
