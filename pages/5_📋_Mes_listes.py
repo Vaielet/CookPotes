@@ -126,6 +126,8 @@ if st.session_state.get("_flash_list_msg"):
 
 lists_summary = db.get_saved_lists(user_id)
 
+st.caption(f"{len(lists_summary)} / {db.MAX_SAVED_LISTS_PER_USER} liste(s) enregistrée(s).")
+
 if not lists_summary:
     st.info(
         "Aucune liste enregistrée pour l'instant. Va sur « 🛒 Générer ma "
