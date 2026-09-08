@@ -16,7 +16,7 @@ import db
 st.set_page_config(page_title="Mes menus", layout="wide")
 
 db.init_db()
-#common.header_logo()
+common.header_logo()
 auth.require_login()
 
 
@@ -163,12 +163,17 @@ selected_id = options[selected_label]
 st.session_state["open_list_id"] = selected_id
 
 delete_col.write("")
-if delete_col.button("🗑️ Supprimer ce menu", use_container_width=True):
-    db.delete_saved_list(selected_id, user_id)
-    st.session_state.pop("_list_detail_cache", None)
-    st.session_state["open_list_id"] = None
-    st.session_state["_flash_list_msg"] = "Liste supprimée."
-    st.rerun()
+with delete_col.popover("🗑️ Supprimer ce menu", use_container_width=True):
+    st.warning(f"Es-tu sûr·e de vouloir supprimer « {current_label} » ? Cette action est irréversible.")
+    if st.button(
+        "✅ Oui, supprimer définitivement", key=f"confirm_delete_list_{selected_id}",
+        type="primary", use_container_width=True,
+    ):
+        db.delete_saved_list(selected_id, user_id)
+        st.session_state.pop("_list_detail_cache", None)
+        st.session_state["open_list_id"] = None
+        st.session_state["_flash_list_msg"] = "Liste supprimée."
+        st.rerun()
 
 detail = _load_list_detail(selected_id, user_id)
 if detail is None:
