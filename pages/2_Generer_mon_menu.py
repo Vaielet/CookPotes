@@ -305,8 +305,8 @@ with title_col:
     common.icon_title("Générer mon menu", "generer_mon_menu.png", "🛒")
 with cart_col:
     st.write("")
-    with st.popover(f"🛒 Ma liste ({len(cart_ids)})", use_container_width=True):
-        st.markdown("#### 🛒 Ma liste")
+    with st.popover(f"🛒 Mon menu ({len(cart_ids)})", use_container_width=True):
+        st.markdown("#### 🛒 Mon menu")
         if not cart_ids:
             st.caption("Ton panier est vide pour l'instant — ajoute des recettes ci-dessous.")
         else:
@@ -533,7 +533,7 @@ with st.container(key="recipe_grid"):
                 in_cart = recipe["id"] in cart_ids
                 if in_cart:
                     if st.button(
-                        "✅ Sur la liste — retirer",
+                        "✅ Au menu — retirer",
                         key=f"cartbtn_{recipe['id']}",
                         use_container_width=True,
                     ):
