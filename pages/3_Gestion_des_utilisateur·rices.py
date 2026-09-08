@@ -15,7 +15,7 @@ import common
 
 db.init_db()
 
-common.header_logo()
+#common.header_logo()
 
 auth.require_admin()
 
