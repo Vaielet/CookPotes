@@ -16,7 +16,7 @@ import db
 st.set_page_config(page_title="Mes menus", layout="wide")
 
 db.init_db()
-common.header_logo()
+#common.header_logo()
 auth.require_login()
 
 
