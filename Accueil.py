@@ -168,7 +168,7 @@ st.html("""
 """)
 
 with st.sidebar:
-    st.space(2)
+    st.space(1)
     
     col1, col2, col3 = st.columns([1, 3, 1])
     with col2:
