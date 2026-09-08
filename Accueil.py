@@ -147,34 +147,56 @@ if auth.can_manage_products():
 pg = st.navigation(pages, position="hidden")
 
 
-
-# Conteneur CSS pour centrer et espacer le logo dans la sidebar
+# Injection CSS avancée avec media query pour la barre réduite
 st.html("""
   <style>
-    /* Ciblage du conteneur personnalisé du logo */
-    .logo-container {
-        display: flex;
-        justify-content: center;
-        align-items: center;
-        padding-top: 1.5rem;    /* Espacement au-dessus */
-        padding-bottom: 1.5rem; /* Espacement en-dessous */
-        width: 100%;
+    /* --- STYLES PAR DÉFAUT (Sidebar OUVERTE) --- */
+
+    /* Centre et donne de l'espace au conteneur principal */
+    div[data-testid="stSidebarHeader"] {
+        display: flex !important;
+        justify-content: center !important; /* Centrage horizontal */
+        align-items: center !important;     /* Centrage vertical */
+        padding-top: 1.5rem !important;
+        padding-bottom: 1rem !important;
+        height: auto !important;
+        max-height: none !important;
     }
+
+    /* Définit la taille du logo et le centre */
+    [alt="Logo"] {
+        height: 100px !important; /* Taille sidebar ouverte */
+        width: auto !important;
+        margin-left: auto !important;
+        margin-right: auto !important;
+        display: block !important;
+        object-fit: contain !important;
+        transition: height 0.3s ease; /* Animation fluide lors du changement de taille */
+    }
+
+
+    /* --- STYLES SPÉCIFIQUES (Sidebar RÉDUITE / FERMÉE) --- */
+
+    /* Le sélecteur [data-sidebar-collapsed="true"] cible la sidebar quand elle est fermée */
+    [data-sidebar-collapsed="true"] div[data-testid="stSidebarHeader"] {
+        padding-top: 2.5rem !important; /* Moins d'espace en haut */
+        padding-bottom: 0.5rem !important;
+        justify-content: center !important;
+    }
+
+    /* Réduit la taille du logo pour qu'il ne dépasse pas */
+    [data-sidebar-collapsed="true"] [alt="Logo"] {
+        height: 35px !important; /* Taille réduite sidebar fermée (ajustez si besoin) */
+        margin: 0 auto !important; /* Centrage strict */
+    }
+
   </style>
 """)
 
-# 2. Affichage du logo directement dans la sidebar
-with st.sidebar:
-    st.markdown('<div class="logo-container">', unsafe_allow_html=True)
-    
-    # Vous contrôlez directement la largeur ici (ex: width=160 ou 180)
-    st.image("images/CookPotes_logo_transparent.png", width=160)
-    
-    st.markdown('</div>', unsafe_allow_html=True)
-
-# 3. Reste du menu dans la sidebar
-st.sidebar.title("Navigation")
-st.sidebar.radio("Menu", ["Accueil", "Mes recettes", "Planification"])
+# Utilisation de st.logo
+st.logo(
+    image="images/CookPotes_logo_transparent.png",
+)
 with st.sidebar:
     # Resserre l'espacement vertical entre les éléments du menu : par
     # défaut, Streamlit met ~1rem d'écart entre les blocs empilés dans la
