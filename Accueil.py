@@ -53,7 +53,20 @@ def home_page() -> None:
     db.init_db()
     auth.render_sidebar_auth()
 
-    common.header_logo()
+    #common.header_logo()
+
+    # --- CONVERSION DU LOGO ---
+    logo_with_subtitle_b64 = get_image_base64("images/CookPotes_logo_with_subtitle.png")
+
+    # Injection du logo en HTML/Base64 (100% natif, centré, sans overlay Streamlit)
+    st.markdown(
+        f"""
+        <div style="display: flex; justify-content: center; align-items: center; width: 100%;">
+            <img src="data:image/png;base64,{logo_with_subtitle_b64}" style="width: 60%; max-width: 160px; height: auto;">
+        </div>
+        """,
+        unsafe_allow_html=True
+    )
 
     st.markdown(
         """
