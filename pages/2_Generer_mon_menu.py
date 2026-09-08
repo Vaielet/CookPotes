@@ -195,7 +195,10 @@ def _sync_reference(changed_key: str, other_key: str) -> None:
 def _generate_shopping_list() -> None:
     """Callback partagé par le bouton du panier et celui tout en bas de page."""
     st.session_state["choices"] = selected_choices
-    st.session_state["reference"] = _current_reference().strip()
+    if _current_reference().strip()=="":
+      st.session_state["reference"]="Mon menu"
+    else:
+      st.session_state["reference"] = _current_reference().strip()
     st.session_state["page_view"] = "results"
 
 
