@@ -28,7 +28,8 @@ common.header_logo()
 
 auth.require_product_curator()
 
-st.title("🧺 Base de produits d'épicerie")
+common.icon_title("Gestion des utilisateur·rices", "gestion_produits.png", "🧺")
+
 st.caption(
     "Harmonise les noms d'ingrédients (synonymes) et leur rayon, utilisés "
     "pour regrouper la liste de courses. Les modifications sont "
