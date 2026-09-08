@@ -196,7 +196,6 @@ st.html("""
 # Utilisation de st.logo
 st.logo(
     image="images/CookPotes_logo_transparent.png",
-    icon_image="images/CookPotes_logo_simple.png",       # Petite icône carrée/ronde (sidebar fermée)    size="large"
 )
 with st.sidebar:
     # Resserre l'espacement vertical entre les éléments du menu : par
