@@ -185,7 +185,7 @@ def _current_reference() -> str:
     for key in (REFERENCE_CART_KEY, REFERENCE_MAIN_KEY):
         if key in st.session_state:
             return st.session_state[key]
-    return "Mon menu"
+    return ""
 
 
 def _sync_reference(changed_key: str, other_key: str) -> None:
