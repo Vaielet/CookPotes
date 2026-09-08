@@ -212,14 +212,14 @@ if view == "results" and not st.session_state.get("choices"):
     view = "selection"
 
 if view == "results":
+    common.icon_title("Composer mon menu", "generer_mon_menu.png", "🛒")
     top_col, back_col = st.columns([5, 2])
     with top_col:
-        common.icon_title("Composer mon menu", "generer_mon_menu.png", "🛒")
         st.header(st.session_state["reference"])
-
-    if st.button("⬅️ Retour à la sélection", key="back_to_selection", use_container_width=True):
-        st.session_state["page_view"] = "selection"
-        st.rerun()
+    with back_col:
+        if st.button("⬅️ Retour à la sélection", key="back_to_selection", use_container_width=True):
+          st.session_state["page_view"] = "selection"
+          st.rerun()
 
     choices = st.session_state.get("choices") or []
     choices = [c for c in choices if c.name in recipes]
