@@ -13,7 +13,7 @@ import auth
 import common
 import db
 
-st.set_page_config(page_title="Mes listes", page_icon="📋", layout="wide")
+st.set_page_config(page_title="Mes menus", layout="wide")
 
 db.init_db()
 common.header_logo()
@@ -111,9 +111,9 @@ def _load_list_detail(list_id: int, user_id: int) -> dict | None:
     return fresh
 
 
-st.title("📋 Mes listes de courses")
+common.icon_title("Mes menus", "mes_menus.png", "📋")
 st.caption(
-    "Retrouve ici les listes enregistrées depuis « 🛒 Générer ma liste ». "
+    "Retrouve ici les menus enregistrées depuis « Composer mon menu ». "
     "Coche les articles au fur et à mesure de tes courses, et ouvre une "
     "recette pour l'avoir sous les yeux en cuisinant."
 )
