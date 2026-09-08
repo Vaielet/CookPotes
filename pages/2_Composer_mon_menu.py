@@ -26,7 +26,7 @@ from common import RecipeChoice
 
 db.init_db()
 
-common.header_logo()
+#common.header_logo()
 
 auth.render_sidebar_auth()  # affichage informatif ; cette page reste accessible sans connexion
 
