@@ -56,7 +56,7 @@ Bienvenue ! Cette application te permet de :
     col1, col2 = st.columns(2)
     with col1:
         if common.icon_button("Composer mon menu", "generer_mon_menu.png", "🛒", key="home-btn-generer"):
-            st.switch_page("pages/2_Generer_mon_menu.py")
+            st.switch_page("pages/2_Composer_mon_menu.py")
         st.markdown("Sélectionne les recettes pour "
         "la semaine (ou le mois, soyons foufolles). Indique le "
         "nombre de personnes pour chaque recette, un clic et le tour est joué ! Tu reçois "
@@ -102,7 +102,7 @@ Bienvenue ! Cette application te permet de :
 # ---------------------------------------------------------------------------
 
 home_page_obj = st.Page(home_page, title="Accueil", default=True)
-generer_page = st.Page("pages/2_Generer_mon_menu.py", title="Composer mon menu")
+generer_page = st.Page("pages/2_Composer_mon_menu.py", title="Composer mon menu")
 ajouter_page = st.Page("pages/1_Ajouter_une_recette.py", title="Ajouter une recette")
 
 # (page, fichier d'icône dans images/icons/, emoji de secours si le fichier
