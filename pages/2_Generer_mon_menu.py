@@ -301,7 +301,6 @@ if view == "results":
 
 title_col, cart_col = st.columns([5, 2])
 with title_col:
-    #st.title("🛒 Générer mon menu")
     common.icon_title("Générer mon menu", "generer_mon_menu.png", "🛒")
 with cart_col:
     st.write("")
