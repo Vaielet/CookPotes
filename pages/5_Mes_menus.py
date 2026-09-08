@@ -177,9 +177,6 @@ if detail is None:
 
 existing_recipe_names = db.get_recipe_names()
 
-st.divider()
-
-
 # ---------------------------------------------------------------------------
 # Actions sur cette liste : télécharger / ouvrir dans une app, comme sur
 # « 🛒 Générer ma liste » — sans rien recalculer, juste exporter les
