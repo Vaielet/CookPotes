@@ -177,8 +177,8 @@ def _icon_css(container_key: str, icon_path: Path, fallback_emoji: str) -> str:
             background-size: contain;
             background-repeat: no-repeat;
             background-position: center;
-            width: 26px;
-            height: 26px;
+            width: 30px;
+            height: 30px;
         """
     else:
         before_content = f"""
