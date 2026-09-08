@@ -301,7 +301,8 @@ if view == "results":
 
 title_col, cart_col = st.columns([5, 2])
 with title_col:
-    st.title("🛒 Générer ma liste")
+    #st.title("🛒 Générer ma liste")
+    common.icon_title("Générer ma liste", "generer_mon_menu.png", "🛒")
 with cart_col:
     st.write("")
     with st.popover(f"🛒 Ma liste ({len(cart_ids)})", use_container_width=True):
