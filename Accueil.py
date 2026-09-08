@@ -155,8 +155,8 @@ st.html("""
         display: flex !important;
         justify-content: center !important; /* Centrage horizontal */
         align-items: center !important;     /* Centrage vertical */
-        padding-top: 1.5rem !important;
-        padding-bottom: 1.5rem !important;
+        padding-top: 0.5rem !important;
+        padding-bottom: 0.5rem !important;
         height: auto !important;
         max-height: none !important;
     }
