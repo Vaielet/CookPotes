@@ -541,7 +541,7 @@ with st.container(key="recipe_grid"):
                         st.rerun()
                 else:
                     if st.button(
-                        "Ajouter à ma liste",
+                        "Ajouter à mon menu",
                         key=f"cartbtn_{recipe['id']}",
                         type="primary",
                         use_container_width=True,
