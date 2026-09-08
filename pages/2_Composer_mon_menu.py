@@ -249,7 +249,7 @@ if view == "results":
                 mime="text/plain",
                 use_container_width=True,
             )
-            st.caption("Ou copie/partage-la directement, où que tu sois (PC, mobile, tablette) :")
+            #st.caption("Ou copie/partage-la directement, où que tu sois (PC, mobile, tablette) :")
             render_share_widget(shopping_text)
 
     # --- Bloc carnet de recettes ---
