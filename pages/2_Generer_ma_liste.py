@@ -212,10 +212,14 @@ if view == "results" and not st.session_state.get("choices"):
     view = "selection"
 
 if view == "results":
-    st.title("🧾 Ta liste de courses")
-    if st.button("⬅️ Retour à la sélection des recettes", key="back_to_selection"):
-        st.session_state["page_view"] = "selection"
-        st.rerun()
+    top_col, back_col = st.columns([5, 2])
+    with top_col:
+        st.title("🧾 Ta liste de courses")
+    with back_col:
+        st.write("")  # aligne verticalement le bouton avec le titre
+        if st.button("⬅️ Retour à la sélection", key="back_to_selection", use_container_width=True):
+            st.session_state["page_view"] = "selection"
+            st.rerun()
 
     choices = st.session_state.get("choices") or []
     choices = [c for c in choices if c.name in recipes]
@@ -225,28 +229,48 @@ if view == "results":
 
     reference = st.session_state.get("reference", "")
 
-    # --- Liste de courses ---
-    st.header("Liste de courses")
-
     shopping = common.build_shopping_list(choices, recipes)
     grouped = shopping.as_grouped_lines()
 
     shopping_title = reference or "Liste de courses de la semaine"
     shopping_text = common.build_shopping_text(shopping_title, grouped)
+    booklet_title = f"Carnet de recettes — {reference}" if reference else "Carnet de recettes de la semaine"
 
-    st.download_button(
-        "📄 Télécharger la liste de courses (.txt)",
-        data=shopping_text,
-        file_name="liste_de_courses.txt",
-        mime="text/plain",
-    )
+    list_col, booklet_col = st.columns(2, gap="large")
 
-    st.caption("Ou copie/partage-la directement, où que tu sois (PC, mobile, tablette) :")
-    render_share_widget(shopping_text)
+    # --- Bloc liste de courses ---
+    with list_col:
+        with st.container(border=True):
+            st.subheader("🧾 Liste de courses")
+            st.download_button(
+                "📄 Télécharger (.txt)",
+                data=shopping_text,
+                file_name="liste_de_courses.txt",
+                mime="text/plain",
+                use_container_width=True,
+            )
+            st.caption("Ou copie/partage-la directement, où que tu sois (PC, mobile, tablette) :")
+            render_share_widget(shopping_text)
+
+    # --- Bloc carnet de recettes ---
+    with booklet_col:
+        with st.container(border=True):
+            st.subheader("📕 Carnet de recettes")
+            with st.spinner("Génération du carnet de recettes..."):
+                pdf_bytes = common.build_recipe_booklet_pdf(choices, recipes, title=booklet_title)
+            st.download_button(
+                "📕 Télécharger le PDF",
+                data=pdf_bytes,
+                file_name="carnet_de_recettes.pdf",
+                mime="application/pdf",
+                use_container_width=True,
+            )
 
     st.divider()
+
+    # --- Enregistrement sur le compte (concerne les deux blocs ci-dessus) ---
     if auth.is_logged_in():
-        if st.button("💾 Enregistrer cette liste dans mon compte", type="primary"):
+        if st.button("💾 Enregistrer cette liste dans mon compte", type="primary", use_container_width=True):
             try:
                 db.save_shopping_list(
                     user_id=auth.current_user_id(),
@@ -270,20 +294,8 @@ if view == "results":
             "courses, et la retrouver plus tard."
         )
 
-    # --- Carnet de recettes PDF ---
-    st.header("Carnet de recettes")
-    booklet_title = f"Carnet de recettes — {reference}" if reference else "Carnet de recettes de la semaine"
-    with st.spinner("Génération du carnet de recettes..."):
-        pdf_bytes = common.build_recipe_booklet_pdf(choices, recipes, title=booklet_title)
-
-    st.download_button(
-        "📕 Télécharger le carnet de recettes (PDF)",
-        data=pdf_bytes,
-        file_name="carnet_de_recettes.pdf",
-        mime="application/pdf",
-    )
-
     st.stop()
+
 
 # --- Vue sélection des recettes ---
 
