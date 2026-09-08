@@ -40,6 +40,8 @@ st.set_page_config(
     layout="wide",
 )
 
+ICONS_DIR = Path(__file__).parent / "images"
+
 def home_page() -> None:
     db.init_db()
     auth.render_sidebar_auth()
