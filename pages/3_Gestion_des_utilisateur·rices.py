@@ -19,7 +19,7 @@ common.header_logo()
 
 auth.require_admin()
 
-st.title("👤 Gestion des utilisateur·rices")
+common.icon_title("Gestion des utilisateur·rices", "gestion_utilisateurs.png", "👤")
 st.caption(
     "Crée des comptes et attribue le statut « éditeur·rice » aux personnes "
     "autorisées à ajouter ou modifier des recettes. Seul·es les "
