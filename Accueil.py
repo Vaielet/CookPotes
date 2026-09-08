@@ -36,8 +36,7 @@ import common
 import db
 
 st.set_page_config(
-    page_title="Liste de courses & carnet de recettes",
-    page_icon="🛒",
+    page_title="Planificateur de repas et liste de courses",
     layout="wide",
 )
 
