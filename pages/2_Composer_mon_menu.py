@@ -214,7 +214,8 @@ if view == "results" and not st.session_state.get("choices"):
 if view == "results":
     top_col, back_col = st.columns([5, 2])
     with top_col:
-        st.title(st.session_state["reference"])
+        common.icon_title("Composer mon menu", "generer_mon_menu.png", "🛒")
+        st.header(st.session_state["reference"])
     with back_col:
         st.write("")  # aligne verticalement le bouton avec le titre
         if st.button("⬅️ Retour à la sélection", key="back_to_selection", use_container_width=True):
@@ -280,16 +281,16 @@ if view == "results":
                 )
             except db.SavedListLimitReached as exc:
                 st.error(str(exc))
-                st.page_link("pages/5_📋_Mes_listes.py", label="📋 Aller à Mes listes", icon="📋")
+                st.page_link("pages/5_Mes_menus.py", label="📋 Aller à Mes menus", icon="📋")
             else:
                 st.success(
-                    "Liste enregistrée ! Retrouve-la, coche les articles au fur "
-                    "et à mesure, et affiche tes recettes sur la page « 📋 Mes listes »."
+                    "Menu ! Retrouve-le, coche les articles au fur "
+                    "et à mesure de tes courses, et affiche tes recettes sur la page « 📋 Mes menus »."
                 )
-                st.page_link("pages/5_📋_Mes_listes.py", label="📋 Aller à Mes listes", icon="📋")
+                st.page_link("pages/5_Mes_menus.py", label="📋 Aller à Mes menus", icon="📋")
     else:
         st.caption(
-            "🔒 Connecte-toi (menu de gauche) pour enregistrer cette liste "
+            "🔒 Connecte-toi (menu de gauche) pour enregistrer ce menu "
             "sur ton compte, cocher les articles au fur et à mesure de tes "
             "courses, et la retrouver plus tard."
         )
