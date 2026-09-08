@@ -24,8 +24,12 @@ vous avec ce compte puis changez immédiatement ce mot de passe depuis la
 page « Gestion des utilisateur·rices ».
 """
 
-import streamlit as st
+import base64
+import mimetypes
+import re
 from pathlib import Path
+
+import streamlit as st
 
 import auth
 import common
@@ -143,31 +147,72 @@ pg = st.navigation(pages, position="hidden")
 
 ICONS_DIR = Path(__file__).parent / "assets" / "icons"
 
-with st.sidebar:
-    st.markdown(
+
+def _slug(name: str) -> str:
+    """Transforme un nom de fichier en identifiant sûr pour une clé de
+    container / classe CSS (lettres, chiffres, tirets seulement)."""
+    return re.sub(r"[^a-z0-9]+", "-", name.lower()).strip("-")
+
+
+def _icon_css(container_key: str, icon_path: Path, fallback_emoji: str) -> str:
+    """
+    Règle CSS qui insère l'icône juste avant le texte du lien, DANS le lien
+    lui-même (pseudo-élément ::before), plutôt que dans une colonne
+    Streamlit séparée à côté. Deux avantages par rapport à la version en
+    colonnes :
+      - alignement pile au pixel près, puisque icône et texte appartiennent
+        au même élément flexbox ;
+      - jamais d'empilement vertical sur mobile, puisqu'il n'y a qu'UN
+        seul composant Streamlit (le lien) — les st.columns, elles,
+        s'empilent sous une certaine largeur d'écran, ce qui causait
+        l'icône affichée au-dessus du texte sur smartphone.
+
+    Si le fichier d'icône n'existe pas, l'émoji de secours est utilisé
+    comme contenu texte du pseudo-élément — aucune image à charger.
+    """
+    if icon_path.exists():
+        mime = mimetypes.guess_type(icon_path.name)[0] or "image/png"
+        b64 = base64.b64encode(icon_path.read_bytes()).decode()
+        before_content = f"""
+            content: "";
+            background-image: url("data:{mime};base64,{b64}");
+            background-size: contain;
+            background-repeat: no-repeat;
+            background-position: center;
+            width: 20px;
+            height: 20px;
         """
-        <style>
-        /* Resserre le lien de page pour qu'il s'aligne avec l'icône à côté. */
-        div[data-testid="stPageLink"] > a { padding-top: 0.15em; padding-bottom: 0.15em; }
-        </style>
-        """,
-        unsafe_allow_html=True,
-    )
+    else:
+        before_content = f"""
+            content: "{fallback_emoji}";
+            font-size: 1.15em;
+            line-height: 1;
+            width: 20px;
+            text-align: center;
+        """
+    return f"""
+        .st-key-{container_key} a {{
+            display: flex;
+            align-items: center;
+            gap: 0.6em;
+        }}
+        .st-key-{container_key} a::before {{
+            {before_content}
+            display: inline-block;
+            flex-shrink: 0;
+        }}
+    """
+
+
+with st.sidebar:
+    css_rules = []
     for page, icon_filename, fallback_emoji in NAV_ITEMS:
-        icon_col, link_col = st.columns([1, 5], gap="small", vertical_alignment="center")
-        icon_path = ICONS_DIR / icon_filename
-        with icon_col:
-            if icon_path.exists():
-                st.image(str(icon_path), width=24)
-            else:
-                # Pas (encore) de logo perso pour cette page : on retombe
-                # sur l'émoji d'origine plutôt que de laisser un trou.
-                st.markdown(
-                    f"<div style='font-size:1.3em; text-align:center;'>{fallback_emoji}</div>",
-                    unsafe_allow_html=True,
-                )
-        with link_col:
+        container_key = f"navitem-{_slug(Path(icon_filename).stem)}"
+        css_rules.append(_icon_css(container_key, ICONS_DIR / icon_filename, fallback_emoji))
+        with st.container(key=container_key):
             st.page_link(page, label=page.title)
+
+    st.markdown(f"<style>{''.join(css_rules)}</style>", unsafe_allow_html=True)
 
 pg.run()
 
