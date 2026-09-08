@@ -149,26 +149,27 @@ pg = st.navigation(pages, position="hidden")
 # Masque le bouton plein écran UNIQUEMENT pour les images de la sidebar
 st.html("""
   <style>
-    /* Ciblage du bouton plein écran uniquement dans la barre latérale */
-    section[data-testid="stSidebar"] button[title="View fullscreen"],
-    section[data-testid="stSidebar"] button[data-testid="StyledFullScreenButton"] {
+    /* 1. Masque l'overlay et le bouton d'agrandissement dans la sidebar */
+    section[data-testid="stSidebar"] [data-testid="stImage"] button,
+    section[data-testid="stSidebar"] [data-testid="stImage"] [data-testid="stElementActionSet"],
+    section[data-testid="stSidebar"] button[title*="fullscreen" i],
+    section[data-testid="stSidebar"] button[title*="plein écran" i] {
         display: none !important;
+        visibility: hidden !important;
+        opacity: 0 !important;
+        pointer-events: none !important;
+    }
+
+    /* 2. Empêche l'apparition des effets au survol de l'image du logo */
+    section[data-testid="stSidebar"] [data-testid="stImage"] {
+        pointer-events: none !important;
     }
   </style>
 """)
 
 with st.sidebar:
-    # Resserre l'espacement vertical entre les éléments du menu : par
-    # défaut, Streamlit met ~1rem d'écart entre les blocs empilés dans la
-    # sidebar (chaque lien vit dans son propre st.container), ce qui
-    # donnait un menu très aéré. Ciblé sur la sidebar uniquement — ne
-    # touche pas le contenu des pages.
-
-    # 1. Espacement au-dessus du logo (évite qu'il colle au haut de l'écran)
-    st.space(2)  # Ou st.caption("") si ta version de Streamlit est plus ancienne
+    st.space(2)
     
-    # 2. Centrage du logo grâce aux colonnes
-    # La colonne du milieu (col2) contient l'image, les colonnes 1 et 3 servent de marges
     col1, col2, col3 = st.columns([1, 3, 1])
     with col2:
         st.image("images/CookPotes_logo_transparent.png", use_container_width=True)
@@ -185,5 +186,4 @@ with st.sidebar:
     )
     for page, icon_filename, fallback_emoji in NAV_ITEMS:
         common.icon_page_link(page, icon_filename, fallback_emoji)
-
 pg.run()
