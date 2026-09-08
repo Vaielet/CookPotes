@@ -146,9 +146,10 @@ if auth.can_manage_products():
 # (pg.run() plus bas) et qui gère les URLs.
 pg = st.navigation(pages, position="hidden")
 
-st.sidebar.image(
-    "images/CookPotes_logo.png", 
-    width=150  # Spécifiez la largeur exacte en pixels
+st.logo(
+    image="images/CookPotes_logo.png",
+    #icon_image="chemin/vers/votre_icone.png", # Facultatif : affiché quand la sidebar est réduite
+    size="medium"  # Options : "small", "medium" (par défaut), "large"
 )
 
 with st.sidebar:
