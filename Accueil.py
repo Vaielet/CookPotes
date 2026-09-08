@@ -41,7 +41,7 @@ st.set_page_config(
     layout="wide",
 )
 
-ICONS_DIR = Path(__file__).parent / "images"
+ICONS_DIR = Path(__file__).parent / "images"/"icons"
 
 
 def _slug(name: str) -> str:
@@ -126,14 +126,14 @@ Bienvenue ! Cette application te permet de :
     with col2:
         with st.container(key="home-btn-ajouter"):
             if st.button("Ajouter une recette"):
-                st.switch_page("pages/1_🍳_Ajouter_une_recette.py")
+                st.switch_page("pages/1_Ajouter_une_recette.py")
         st.markdown("Partage tes recettes coup de coeur ou celles de ton grand-père, ta tante, etc. "
         "**Réservé aux utilisateur·rices avec un compte** —"
         "Crée un compte ou connecte-toi via le menu à gauche.")
 
     st.markdown(
         "<style>"
-        + _icon_css("home-btn-generer", ICONS_DIR / "generer_ma_liste.png", "🛒", tag="button")
+        + _icon_css("home-btn-generer", ICONS_DIR / "generer_mon_menu.png", "🛒", tag="button")
         + _icon_css("home-btn-ajouter", ICONS_DIR / "ajouter_une_recette.png", "🍳", tag="button")
         + "</style>",
         unsafe_allow_html=True,
@@ -171,39 +171,37 @@ Bienvenue ! Cette application te permet de :
 # menu ci-dessous, à la place du menu automatique de st.navigation.
 # ---------------------------------------------------------------------------
 
-home_page_obj = st.Page(home_page, title="Accueil", icon="🏠", default=True)
-generer_page = st.Page("pages/2_Generer_ma_liste.py", title="Générer ma liste", icon="🛒")
-ajouter_page = st.Page("pages/1_🍳_Ajouter_une_recette.py", title="Ajouter une recette", icon="🍳")
+home_page_obj = st.Page(home_page, title="Accueil", default=True)
+generer_page = st.Page("pages/2_Generer_ma_liste.py", title="Générer ma liste")
+ajouter_page = st.Page("pages/1_Ajouter_une_recette.py", title="Ajouter une recette")
 
 # (page, fichier d'icône dans images/, emoji de secours si le fichier
 # n'existe pas encore — le menu reste donc toujours fonctionnel même avant
 # d'avoir déposé vos propres images).
 NAV_ITEMS = [
     (home_page_obj, "accueil.png", "🏠"),
-    (generer_page, "generer_ma_liste.png", "🛒"),
+    (generer_page, "generer_mon_menu.png", "🛒"),
     (ajouter_page, "ajouter_une_recette.png", "🍳"),
 ]
 pages = [home_page_obj, generer_page, ajouter_page]
 
 if auth.is_editor():
-    mes_listes_page = st.Page("pages/5_📋_Mes_listes.py", title="Mes listes", icon="📋")
+    mes_listes_page = st.Page("pages/5_Mes_listes.py", title="Mes listes")
     pages.append(mes_listes_page)
     NAV_ITEMS.append((mes_listes_page, "mes_listes.png", "📋"))
 
 if auth.is_admin():
     gestion_users_page = st.Page(
-        "pages/3_👤_Gestion_des_utilisateur·rices.py",
+        "pages/3_Gestion_des_utilisateur·rices.py",
         title="Gestion des utilisateur·rices",
-        icon="👤",
     )
     pages.append(gestion_users_page)
     NAV_ITEMS.append((gestion_users_page, "gestion_utilisateurs.png", "👤"))
 
 if auth.can_manage_products():
     gestion_produits_page = st.Page(
-        "pages/4_🧺_Produits.py",
+        "pages/4_Produits.py",
         title="Gestion des produits",
-        icon="🧺",
     )
     pages.append(gestion_produits_page)
     NAV_ITEMS.append((gestion_produits_page, "gestion_produits.png", "🧺"))
