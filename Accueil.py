@@ -33,6 +33,8 @@ import streamlit as st
 import auth
 import common
 import db
+import base64
+
 
 st.set_page_config(
     page_title="Liste de courses & carnet de recettes",
@@ -146,32 +148,34 @@ if auth.can_manage_products():
 # (pg.run() plus bas) et qui gère les URLs.
 pg = st.navigation(pages, position="hidden")
 
-# Masque le bouton plein écran UNIQUEMENT pour les images de la sidebar
-st.html("""
-  <style>
-    /* 1. Masque l'overlay et le bouton d'agrandissement dans la sidebar */
-    section[data-testid="stSidebar"] [data-testid="stImage"] button,
-    section[data-testid="stSidebar"] [data-testid="stImage"] [data-testid="stElementActionSet"],
-    section[data-testid="stSidebar"] button[title*="fullscreen" i],
-    section[data-testid="stSidebar"] button[title*="plein écran" i] {
-        display: none !important;
-        visibility: hidden !important;
-        opacity: 0 !important;
-        pointer-events: none !important;
-    }
 
-    /* 2. Empêche l'apparition des effets au survol de l'image du logo */
-    section[data-testid="stSidebar"] [data-testid="stImage"] {
-        pointer-events: none !important;
-    }
-  </style>
-""")
+def get_image_base64(file_path):
+    """Convertit une image locale en chaîne Base64."""
+    with open(file_path, "rb") as f:
+        data = f.read()
+    return base64.b64encode(data).decode("utf-8")
 
-with st.sidebar:    
-    col1, col2, col3 = st.columns([1, 5, 1])
-    with col2:
-        st.image("images/CookPotes_logo_transparent.png", use_container_width=True)
-        
+# --- CONVERSION DU LOGO ---
+logo_b64 = get_image_base64("images/CookPotes_logo_transparent.png")
+
+# --- SIDEBAR ---
+with st.sidebar:
+    st.space(2)
+    
+    # Injection du logo en HTML/Base64 (100% natif, centré, sans overlay Streamlit)
+    st.markdown(
+        f"""
+        <div style="display: flex; justify-content: center; align-items: center; width: 100%;">
+            <img src="data:image/png;base64,{logo_b64}" style="width: 60%; max-width: 160px; height: auto;">
+        </div>
+        """,
+        unsafe_allow_html=True
+    )
+    
+    st.space(1)
+    st.divider()
+
+    # Reste de votre navigation
     st.markdown(
         """
         <style>
