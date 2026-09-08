@@ -157,7 +157,7 @@ st.html("""
         """)
 
 st.logo(
-    image="images/CookPotes_logo.png",
+    image="images/CookPotes_logo_transparent.png",
     #icon_image="chemin/vers/votre_icone.png", # Facultatif : affiché quand la sidebar est réduite
     size="large"
 )
