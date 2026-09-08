@@ -146,6 +146,18 @@ if auth.can_manage_products():
 # (pg.run() plus bas) et qui gère les URLs.
 pg = st.navigation(pages, position="hidden")
 
+st.markdown(
+    """
+    <style>
+    [data-testid="stLogo"] {
+        width: 180px;
+        height: auto;
+    }
+    </style>
+    """,
+    unsafe_allow_html=True
+)
+
 st.logo(
     image="images/CookPotes_logo.png",
     #icon_image="chemin/vers/votre_icone.png", # Facultatif : affiché quand la sidebar est réduite
