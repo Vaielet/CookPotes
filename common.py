@@ -77,10 +77,6 @@ COMMON_TAGS = [
 ]
 
 # Icones personnalisées
-
-ICONS_DIR = Path(__file__).parent / "images"
-
-
 def _slug(name: str) -> str:
     """Transforme un nom de fichier en identifiant sûr pour une clé de
     container / classe CSS (lettres, chiffres, tirets seulement)."""
