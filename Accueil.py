@@ -149,14 +149,14 @@ pg = st.navigation(pages, position="hidden")
 st.markdown(
     <style>
       div[data-testid="stSidebarHeader"] > img, div[data-testid="collapsedControl"] > img {
-      height: 3rem;
+      height: 300px;
       width: auto;
       }
   
       div[data-testid="stSidebarHeader"], div[data-testid="stSidebarHeader"] > *,
       div[data-testid="collapsedControl"], div[data-testid="collapsedControl"] > * {
       display: flex;
-      align-items: center;
+      #align-items: center;
       }
     </style>
 )
