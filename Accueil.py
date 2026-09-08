@@ -151,7 +151,7 @@ pg = st.navigation(pages, position="hidden")
 st.html("""
   <style>
     [alt=Logo] {
-      height: 3rem;
+      height: 300px;
     }
   </style>
         """)
