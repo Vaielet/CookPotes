@@ -146,42 +146,33 @@ if auth.can_manage_products():
 # (pg.run() plus bas) et qui gère les URLs.
 pg = st.navigation(pages, position="hidden")
 
-import streamlit as st
-
-# --- 1. INJECTION CSS EN HAUT DE PAGE (SANS LE PLACER DANS LA SIDEBAR) ---
+# Masque le bouton plein écran UNIQUEMENT pour les images de la sidebar
 st.html("""
   <style>
-    /* Désactive toutes les actions et survol sur les images dans la sidebar */
-    [data-testid="stSidebar"] [data-testid="stImage"] {
+    /* 1. Masque l'overlay et le bouton d'agrandissement dans la sidebar */
+    section[data-testid="stSidebar"] [data-testid="stImage"] button,
+    section[data-testid="stSidebar"] [data-testid="stImage"] [data-testid="stElementActionSet"],
+    section[data-testid="stSidebar"] button[title*="fullscreen" i],
+    section[data-testid="stSidebar"] button[title*="plein écran" i] {
+        display: none !important;
+        visibility: hidden !important;
+        opacity: 0 !important;
         pointer-events: none !important;
     }
 
-    /* Masque directement le conteneur du bouton plein écran */
-    [data-testid="stSidebar"] [data-testid="stElementActionSet"],
-    [data-testid="stSidebar"] button[title*="fullscreen" i],
-    [data-testid="stSidebar"] button[title*="plein écran" i],
-    [data-testid="stSidebar"] button[data-testid="StyledFullScreenButton"] {
-        display: none !important;
-        opacity: 0 !important;
-        visibility: hidden !important;
+    /* 2. Empêche l'apparition des effets au survol de l'image du logo */
+    section[data-testid="stSidebar"] [data-testid="stImage"] {
+        pointer-events: none !important;
     }
   </style>
 """)
 
-# --- 2. CODE DE VOTRE SIDEBAR ---
 with st.sidebar:
     st.space(2)
     
     col1, col2, col3 = st.columns([1, 3, 1])
     with col2:
-        st.markdown(
-            """
-            <div style="display: flex; justify-content: center; align-items: center; width: 100%;">
-                <img src="images/CookPotes_logo_transparent.png" style="width: 70%; max-width: 180px; height: auto;">
-            </div>
-            """,
-            unsafe_allow_html=True
-        )
+        st.image("images/CookPotes_logo_transparent.png", use_container_width=True)
         
     st.markdown(
         """
