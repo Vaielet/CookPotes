@@ -213,7 +213,7 @@ if view == "results" and not st.session_state.get("choices"):
 
 if view == "results":
     common.icon_title("Composer mon menu", "generer_mon_menu.png", "🛒")
-    top_col, back_col = st.columns([5, 2])
+    top_col, back_col = st.columns([5, 2],vertical_alignment="center")
     with top_col:
         st.header(st.session_state["reference"])
     with back_col:
