@@ -177,7 +177,7 @@ st.logo(
     image="images/CookPotes_logo_transparent.png",
     size="large"
 )
-)
+
 with st.sidebar:
     # Resserre l'espacement vertical entre les éléments du menu : par
     # défaut, Streamlit met ~1rem d'écart entre les blocs empilés dans la
