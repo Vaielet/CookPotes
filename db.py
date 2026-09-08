@@ -54,7 +54,7 @@ DEFAULT_ADMIN_PASSWORD = "admin123"
 
 # Longueur maximale du petit texte de présentation d'une recette
 # ("pourquoi on l'aime bien"). Doit correspondre à common.MAX_DESCRIPTION_CHARS.
-MAX_DESCRIPTION_CHARS = 300
+MAX_DESCRIPTION_CHARS =  common.MAX_DESCRIPTION_CHARS
 
 # ---------------------------------------------------------------------------
 # Cache des lectures
