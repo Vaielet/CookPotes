@@ -18,6 +18,7 @@ from dataclasses import dataclass, field
 from collections import defaultdict
 from datetime import datetime
 from fractions import Fraction
+from pathlib import Path
 
 from PIL import Image, ImageDraw, ImageFont, ImageOps
 
