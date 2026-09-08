@@ -139,8 +139,8 @@ def icon_css(
             background-size: contain;
             background-repeat: no-repeat;
             background-position: center;
-            width: 26px;
-            height: 26px;
+            width: 30px;
+            height: 30px;
         """
     else:
         before_content = f"""
