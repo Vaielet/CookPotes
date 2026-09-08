@@ -146,19 +146,18 @@ if auth.can_manage_products():
 # (pg.run() plus bas) et qui gère les URLs.
 pg = st.navigation(pages, position="hidden")
 
+
+# Injection CSS pour cibler l'image du logo dans la sidebar
 st.markdown(
+    """
     <style>
-      div[data-testid="stSidebarHeader"] > img, div[data-testid="collapsedControl"] > img {
-      height: 300px;
-      width: auto;
-      }
-  
-      div[data-testid="stSidebarHeader"], div[data-testid="stSidebarHeader"] > *,
-      div[data-testid="collapsedControl"], div[data-testid="collapsedControl"] > * {
-      display: flex;
-      #align-items: center;
-      }
+    [data-testid="stSidebarHeader"] {
+        width: 180px;
+        height: auto;
+    }
     </style>
+    """,
+    unsafe_allow_html=True
 )
 st.logo(
     image="images/CookPotes_logo.png",
