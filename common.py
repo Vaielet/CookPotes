@@ -323,6 +323,7 @@ def normalize_unit(quantity, unit):
     return Fraction(quantity).limit_denominator(100), unit
 
 # Widget pour ouvrir la liste de courses dans une app de notes
+
 def render_share_widget(text: str, height: int = 90) -> None:
     """
     Affiche deux boutons — « Copier » et « Partager » — basés sur des API
@@ -398,6 +399,7 @@ def render_share_widget(text: str, height: int = 90) -> None:
         """,
         height=height,
     )
+
 
 # ---------------------------------------------------------------------------
 # Base de produits d'épicerie : nom canonique, synonymes, rayon.
