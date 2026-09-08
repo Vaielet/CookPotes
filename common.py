@@ -186,10 +186,15 @@ def icon_button(
     container_key = f"iconbtn-{slug(key)}"
     with st.container(key=container_key):
         clicked = st.button(label, key=key, **button_kwargs)
-    st.markdown(
-        f"<style>{icon_css(container_key, ICONS_DIR / icon_filename, fallback_emoji, tag='button', justify=justify)}</style>",
-        unsafe_allow_html=True,
-    )
+        # Le tag <style> est injecté DANS le même container que le bouton
+        # (plutôt qu'en élément frère juste après) pour ne pas ajouter un
+        # bloc de plus à l'espacement vertical du parent — important
+        # quand plusieurs de ces boutons/liens sont empilés (voir menu de
+        # navigation dans Accueil.py).
+        st.markdown(
+            f"<style>{icon_css(container_key, ICONS_DIR / icon_filename, fallback_emoji, tag='button', justify=justify)}</style>",
+            unsafe_allow_html=True,
+        )
     return clicked
 
 
@@ -208,10 +213,12 @@ def icon_page_link(
     container_key = f"navitem-{slug(Path(icon_filename).stem)}"
     with st.container(key=container_key):
         st.page_link(page, label=label or page.title)
-    st.markdown(
-        f"<style>{icon_css(container_key, ICONS_DIR / icon_filename, fallback_emoji, tag='a', justify=justify)}</style>",
-        unsafe_allow_html=True,
-    )
+        # Voir le commentaire équivalent dans icon_button : le <style> est
+        # injecté ici, à l'intérieur du container, pas juste après.
+        st.markdown(
+            f"<style>{icon_css(container_key, ICONS_DIR / icon_filename, fallback_emoji, tag='a', justify=justify)}</style>",
+            unsafe_allow_html=True,
+        )
 
 
 def format_datetime(iso_string: str | None) -> str:

@@ -145,6 +145,22 @@ if auth.can_manage_products():
 pg = st.navigation(pages, position="hidden")
 
 with st.sidebar:
+    # Resserre l'espacement vertical entre les éléments du menu : par
+    # défaut, Streamlit met ~1rem d'écart entre les blocs empilés dans la
+    # sidebar (chaque lien vit dans son propre st.container), ce qui
+    # donnait un menu très aéré. Ciblé sur la sidebar uniquement — ne
+    # touche pas le contenu des pages.
+    st.markdown(
+        """
+        <style>
+        section[data-testid="stSidebar"] div[data-testid="stVerticalBlock"] {
+            gap: 0.25rem;
+        }
+        </style>
+        """,
+        unsafe_allow_html=True,
+    )
+
     for page, icon_filename, fallback_emoji in NAV_ITEMS:
         common.icon_page_link(page, icon_filename, fallback_emoji)
 
