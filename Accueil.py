@@ -116,9 +116,9 @@ NAV_ITEMS = [
 pages = [home_page_obj, generer_page, ajouter_page]
 
 if auth.is_editor():
-    mes_listes_page = st.Page("pages/5_Mes_listes.py", title="Mes listes")
+    mes_listes_page = st.Page("pages/5_Mes_menus.py", title="Mes menus")
     pages.append(mes_listes_page)
-    NAV_ITEMS.append((mes_listes_page, "mes_listes.png", "📋"))
+    NAV_ITEMS.append((mes_listes_page, "mes_menus.png", "📋"))
 
 if auth.is_admin():
     gestion_users_page = st.Page(
