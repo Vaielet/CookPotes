@@ -179,15 +179,15 @@ st.html("""
 
     /* Le sélecteur [data-sidebar-collapsed="true"] cible la sidebar quand elle est fermée */
     [data-sidebar-collapsed="true"] div[data-testid="stSidebarHeader"] {
-        padding-top: 2.5rem !important; /* Moins d'espace en haut */
+        padding-top: 0.5rem !important; /* Moins d'espace en haut */
         padding-bottom: 0.5rem !important;
         justify-content: center !important;
     }
 
     /* Réduit la taille du logo pour qu'il ne dépasse pas */
     [data-sidebar-collapsed="true"] [alt="Logo"] {
-        height: 35px !important; /* Taille réduite sidebar fermée (ajustez si besoin) */
-        margin: 0 auto !important; /* Centrage strict */
+        height: 10px !important; /* Taille réduite sidebar fermée (ajustez si besoin) */
+        margin: 10 auto !important; /* Centrage strict */
     }
 
   </style>
