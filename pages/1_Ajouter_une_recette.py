@@ -27,7 +27,7 @@ st.set_page_config(page_title="Ajouter une recette", layout="wide")
 
 db.init_db()
 
-common.header_logo()
+#common.header_logo()
 
 auth.require_editor()
 
