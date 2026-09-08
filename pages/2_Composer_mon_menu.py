@@ -214,7 +214,7 @@ if view == "results":
         st.caption(
             "🔒 Connecte-toi (menu de gauche) pour enregistrer ce menu "
             "sur ton compte, cocher les articles au fur et à mesure de tes "
-            "courses, et la retrouver plus tard."
+            "courses, et retrouver les recettes."
         )
 
     st.stop()
