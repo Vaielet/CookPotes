@@ -160,7 +160,7 @@ logo_b64 = get_image_base64("images/CookPotes_logo_transparent.png")
 
 # --- SIDEBAR ---
 with st.sidebar:
-    st.space(2)
+    #st.space(2)
     
     # Injection du logo en HTML/Base64 (100% natif, centré, sans overlay Streamlit)
     st.markdown(
