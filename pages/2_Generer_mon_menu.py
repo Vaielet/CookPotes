@@ -304,10 +304,10 @@ with title_col:
     common.icon_title("Générer mon menu", "generer_mon_menu.png", "🛒")
 with cart_col:
     st.write("")
-    with st.popover(f"🛒 Mon menu ({len(cart_ids)})", use_container_width=True):
-        st.markdown("#### 🛒 Mon menu")
+    with st.popover(f"Mon menu ({len(cart_ids)})", use_container_width=True):
+        st.markdown("#### Mon menu")
         if not cart_ids:
-            st.caption("Ton panier est vide pour l'instant — ajoute des recettes ci-dessous.")
+            st.caption("Ton menu est vide pour l'instant — ajoute des recettes ci-dessous.")
         else:
             for rid in sorted(cart_ids, key=lambda i: recipes_by_id[i][0].lower()):
                 name, recipe = recipes_by_id[rid]
