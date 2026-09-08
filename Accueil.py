@@ -65,7 +65,7 @@ Bienvenue ! Cette application te permet de :
         "la liste de courses et les recettes plus tard.")
 
     with col2:
-        if common.icon_button("Ajouter une recette", "ajouter_une_recette.png", "🍳", key="home-btn-ajouter"):
+        if common.icon_button("Ajouter une recette", "ajouter_une_recette.png", "🍳", key="home-btn-ajouter",use_container_width=True):
             st.switch_page("pages/1_Ajouter_une_recette.py")
         st.markdown("Partage tes recettes coup de coeur ou celles de ton grand-père, ta tante, etc. "
         "**Réservé aux utilisateur·rices avec un compte** —"
