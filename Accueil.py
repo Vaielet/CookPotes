@@ -147,23 +147,27 @@ if auth.can_manage_products():
 pg = st.navigation(pages, position="hidden")
 
 
-# Injection CSS pour ajouter du padding et ajuster les marges du logo
+# Injection CSS pour centrer le logo horizontalement et ajuster les espacements
 st.html("""
   <style>
-    /* Cibler le conteneur principal de l'en-tête de la sidebar */
+    /* 1. Aligner le conteneur parent au centre */
     div[data-testid="stSidebarHeader"] {
+        display: flex !important;
+        justify-content: center !important; /* Centrage horizontal */
+        align-items: center !important;     /* Centrage vertical */
         padding-top: 1.5rem !important;
         padding-bottom: 1.5rem !important;
         height: auto !important;
         max-height: none !important;
     }
 
-    /* Cibler l'image du logo pour ajouter de la marge et conserver les proportions */
+    /* 2. Ajuster l'image pour qu'elle s'aligne proprement au centre */
     [alt="Logo"] {
-        height: 100px !important;
+        height: 120px !important;
         width: auto !important;
-        margin-top: 10px !important;
-        margin-bottom: 15px !important;
+        margin-left: auto !important;
+        margin-right: auto !important;
+        display: block !important;
         object-fit: contain !important;
     }
   </style>
@@ -172,6 +176,7 @@ st.html("""
 st.logo(
     image="images/CookPotes_logo_transparent.png",
     size="large"
+)
 )
 with st.sidebar:
     # Resserre l'espacement vertical entre les éléments du menu : par
