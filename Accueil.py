@@ -160,7 +160,7 @@ st.html("""
 
     /* Cibler l'image du logo pour ajouter de la marge et conserver les proportions */
     [alt="Logo"] {
-        height: 70px !important;
+        height: 100px !important;
         width: auto !important;
         margin-top: 10px !important;
         margin-bottom: 15px !important;
