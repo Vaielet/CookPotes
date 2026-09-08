@@ -155,7 +155,7 @@ if "open_list_id" not in st.session_state or st.session_state["open_list_id"] no
 
 current_label = next(lbl for lbl, i in options.items() if i == st.session_state["open_list_id"])
 
-select_col, delete_col = st.columns([4, 1],vertical_alignment="center")
+select_col, delete_col = st.columns([4, 1],vertical_alignment="bottom")
 selected_label = select_col.selectbox(
     "Choisis un menu", options=labels, index=labels.index(current_label),
 )
