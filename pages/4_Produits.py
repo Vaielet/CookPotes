@@ -24,7 +24,7 @@ st.set_page_config(page_title="Gestion des produits", page_icon="🧺", layout="
 
 db.init_db()
 
-common.header_logo()
+#common.header_logo()
 
 auth.require_product_curator()
 
