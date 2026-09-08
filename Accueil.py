@@ -57,10 +57,12 @@ Bienvenue ! Cette application te permet de :
     with col1:
         if common.icon_button("Composer mon menu", "generer_mon_menu.png", "🛒", key="home-btn-generer"):
             st.switch_page("pages/2_Composer_mon_menu.py")
-        st.markdown("Sélectionne les recettes pour "
-        "la semaine (ou le mois, soyons foufolles). Indique le "
-        "nombre de personnes pour chaque recette, un clic et le tour est joué ! Tu reçois "
-        "ta liste de courses et un carnet avec les recettes sélectionnées en PDF.")
+        st.markdown("Sélectionne des recettes pour "
+        "composer ton menu. Indique le "
+        "nombre de personnes pour chaque recette. Télécharge "
+        "ta liste de courses et le carnet avec les recettes sélectionnées en PDF. "
+        "Si tu as un compte, tu peux enregistrer pour consulter "
+        "la liste de courses et les recettes plus tard.")
 
     with col2:
         if common.icon_button("Ajouter une recette", "ajouter_une_recette.png", "🍳", key="home-btn-ajouter"):
