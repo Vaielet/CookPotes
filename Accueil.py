@@ -101,9 +101,9 @@ Bienvenue ! Cette application te permet de :
 # menu ci-dessous, à la place du menu automatique de st.navigation.
 # ---------------------------------------------------------------------------
 
-home_page_obj = st.Page(home_page, title="Accueil", icon="", default=True)
-generer_page = st.Page("pages/2_Generer_ma_liste.py", title="Générer ma liste", icon="")
-ajouter_page = st.Page("pages/1_🍳_Ajouter_une_recette.py", title="Ajouter une recette", icon="")
+home_page_obj = st.Page(home_page, title="Accueil", default=True)
+generer_page = st.Page("pages/2_Generer_ma_liste.py", title="Générer ma liste")
+ajouter_page = st.Page("pages/1_🍳_Ajouter_une_recette.py", title="Ajouter une recette")
 
 # (page, fichier d'icône dans assets/icons/, emoji de secours si le fichier
 # n'existe pas encore — le menu reste donc toujours fonctionnel même avant
