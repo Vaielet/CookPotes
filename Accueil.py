@@ -109,16 +109,16 @@ ajouter_page = st.Page("pages/1_Ajouter_une_recette.py", title="Ajouter une rece
 # n'existe pas encore — le menu reste donc toujours fonctionnel même avant
 # d'avoir déposé vos propres images).
 NAV_ITEMS = [
-    (home_page_obj, "images/accueil.png", "🏠"),
-    (generer_page, "images/generer_mon_menu.png", "🛒"),
-    (ajouter_page, "images/ajouter_une_recette.png", "🍳"),
+    (home_page_obj, "accueil.png", "🏠"),
+    (generer_page, "generer_mon_menu.png", "🛒"),
+    (ajouter_page, "ajouter_une_recette.png", "🍳"),
 ]
 pages = [home_page_obj, generer_page, ajouter_page]
 
 if auth.is_logged_in():
     mes_listes_page = st.Page("pages/5_Mes_listes.py", title="Mes listes")
     pages.append(mes_listes_page)
-    NAV_ITEMS.append((mes_listes_page, "images/mes_menus.png", "📋"))
+    NAV_ITEMS.append((mes_listes_page, "mes_menus.png", "📋"))
 
 if auth.is_admin():
     gestion_users_page = st.Page(
@@ -126,7 +126,7 @@ if auth.is_admin():
         title="Gestion des utilisateur·rices",
     )
     pages.append(gestion_users_page)
-    NAV_ITEMS.append((gestion_users_page, "images/gestion_utilisateurs.png", "👤"))
+    NAV_ITEMS.append((gestion_users_page, "gestion_utilisateurs.png", "👤"))
 
 if auth.can_manage_products():
     gestion_produits_page = st.Page(
@@ -134,7 +134,7 @@ if auth.can_manage_products():
         title="Gestion des produits",
     )
     pages.append(gestion_produits_page)
-    NAV_ITEMS.append((gestion_produits_page, "images/gestion_produits.png", "🧺"))
+    NAV_ITEMS.append((gestion_produits_page, "gestion_produits.png", "🧺"))
 
 
 # Menu automatique désactivé (position="hidden") : on affiche notre propre
@@ -143,7 +143,7 @@ if auth.can_manage_products():
 # route vers la bonne page (pg.run() plus bas) et qui gère les URLs.
 pg = st.navigation(pages, position="hidden")
 
-ICONS_DIR = Path(__file__).parent / "assets" / "icons"
+ICONS_DIR = Path(__file__).parent / "images" / "icons"
 
 
 def _slug(name: str) -> str:
