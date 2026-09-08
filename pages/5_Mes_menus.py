@@ -210,7 +210,7 @@ with action_cols[0]:
         file_name=f"{list_title}.txt", mime="text/plain",
         use_container_width=True, disabled=not export_grouped,
     )
-    common.render_share_widget(data)
+    common.render_share_widget(common.build_shopping_text(list_title, export_grouped))
 
 with action_cols[1]:
     if st.button("🗒️ Ouvrir dans l'app Notes", use_container_width=True, disabled=not export_grouped):
