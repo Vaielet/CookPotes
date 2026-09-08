@@ -177,7 +177,7 @@ with st.sidebar:
         st.markdown(
             """
             <div style="display: flex; justify-content: center; align-items: center; width: 100%;">
-                <img src="app/static/CookPotes_logo_transparent.png" style="width: 70%; max-width: 180px; height: auto;">
+                <img src="images/CookPotes_logo_transparent.png" style="width: 70%; max-width: 180px; height: auto;">
             </div>
             """,
             unsafe_allow_html=True
