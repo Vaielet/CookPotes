@@ -1064,6 +1064,36 @@ def delete_product(product_id: int) -> None:
 # cochées restent valables pour EXACTEMENT les articles qui existaient au
 # moment de la sauvegarde.
 
+# Nombre maximum de listes qu'un·e même utilisateur·rice peut garder
+# enregistrées en même temps (évite d'accumuler indéfiniment des lignes en
+# base — chaque liste entraîne aussi ses lignes d'articles et de recettes
+# associées).
+MAX_SAVED_LISTS_PER_USER = 5
+
+
+class SavedListLimitReached(Exception):
+    """
+    Levée par save_shopping_list quand le compte a déjà atteint
+    MAX_SAVED_LISTS_PER_USER listes enregistrées. Le message (str(exc)) est
+    déjà rédigé pour être affiché tel quel à l'utilisateur·rice, par
+    exemple :
+
+        try:
+            db.save_shopping_list(user_id, reference, choices, grouped)
+        except db.SavedListLimitReached as exc:
+            st.error(str(exc))
+    """
+
+
+def count_saved_lists(user_id: int) -> int:
+    """Nombre de listes actuellement enregistrées par ce compte."""
+    with get_conn() as conn:
+        return conn.execute(
+            text("SELECT COUNT(*) FROM saved_shopping_lists WHERE user_id = :user_id"),
+            {"user_id": user_id},
+        ).scalar()
+
+
 def save_shopping_list(
     user_id: int,
     reference: str,
@@ -1075,8 +1105,22 @@ def save_shopping_list(
     `recipe_choices` : [(nom_recette, nb_personnes), ...].
     `grouped_items` : {rayon: [ligne formatée, ...], ...} (voir
     ShoppingList.as_grouped_lines côté common.py).
+
+    Lève SavedListLimitReached (sans rien enregistrer) si ce compte a déjà
+    MAX_SAVED_LISTS_PER_USER listes enregistrées.
     """
     with get_conn() as conn:
+        existing = conn.execute(
+            text("SELECT COUNT(*) FROM saved_shopping_lists WHERE user_id = :user_id"),
+            {"user_id": user_id},
+        ).scalar()
+        if existing >= MAX_SAVED_LISTS_PER_USER:
+            raise SavedListLimitReached(
+                f"Vous avez déjà {existing} liste(s) enregistrée(s), soit le maximum autorisé "
+                f"({MAX_SAVED_LISTS_PER_USER}). Supprimez-en une depuis « 📋 Mes listes » avant "
+                "d'en enregistrer une nouvelle."
+            )
+
         list_id = conn.execute(
             text("""
                 INSERT INTO saved_shopping_lists (user_id, reference, created_at)
