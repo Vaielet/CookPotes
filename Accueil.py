@@ -53,7 +53,7 @@ Bienvenue ! Cette application te permet de :
         """
     )
 
-    col1, col2 = st.columns(2,gap="large")
+    col1, col2 = st.columns(2,gap="large",border=True)
     with col1:
         if common.icon_button("Composer mon menu", "generer_mon_menu.png", "🛒", key="home-btn-generer"):
             st.switch_page("pages/2_Composer_mon_menu.py")
