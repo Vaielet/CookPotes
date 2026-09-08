@@ -179,7 +179,7 @@ st.html("""
 
     /* Le sélecteur [data-sidebar-collapsed="true"] cible la sidebar quand elle est fermée */
     [data-sidebar-collapsed="true"] div[data-testid="stSidebarHeader"] {
-        padding-top: 0.5rem !important; /* Moins d'espace en haut */
+        padding-top: 2.5rem !important; /* Moins d'espace en haut */
         padding-bottom: 0.5rem !important;
         justify-content: center !important;
     }
