@@ -55,7 +55,7 @@ Bienvenue ! Cette application te permet de :
 
     col1, col2 = st.columns(2,gap="large",border=True)
     with col1:
-        if common.icon_button("Composer mon menu", "generer_mon_menu.png", "🛒", key="home-btn-generer",use_container_width=True):
+        if common.icon_button("Composer mon menu", "generer_mon_menu.png", "🛒", key="home-btn-generer"):
             st.switch_page("pages/2_Composer_mon_menu.py")
         st.markdown("Sélectionne des recettes pour "
         "composer ton menu. Indique le "
@@ -65,7 +65,7 @@ Bienvenue ! Cette application te permet de :
         "la liste de courses et les recettes plus tard.")
 
     with col2:
-        if common.icon_button("Ajouter une recette", "ajouter_une_recette.png", "🍳", key="home-btn-ajouter",use_container_width=True):
+        if common.icon_button("Ajouter une recette", "ajouter_une_recette.png", "🍳", key="home-btn-ajouter"):
             st.switch_page("pages/1_Ajouter_une_recette.py")
         st.markdown("Partage tes recettes coup de coeur ou celles de ton grand-père, ta tante, etc. "
         "**Réservé aux utilisateur·rices avec un compte** —"
