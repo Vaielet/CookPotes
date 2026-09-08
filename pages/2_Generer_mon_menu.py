@@ -214,7 +214,7 @@ if view == "results" and not st.session_state.get("choices"):
 if view == "results":
     top_col, back_col = st.columns([5, 2])
     with top_col:
-        st.title("Tout est prêt pour ton menu")
+        st.title(_current_reference().strip())
     with back_col:
         st.write("")  # aligne verticalement le bouton avec le titre
         if st.button("⬅️ Retour à la sélection", key="back_to_selection", use_container_width=True):
