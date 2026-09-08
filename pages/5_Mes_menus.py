@@ -296,10 +296,10 @@ st.divider()
 
 
 # ---------------------------------------------------------------------------
-# Recettes de cette liste — affichage détaillé sur demande
+# Recettes de ce menu — affichage détaillé sur demande
 # ---------------------------------------------------------------------------
 
-st.subheader("🍽️ Recettes de cette liste")
+st.subheader("🍽️ Recettes de ce menu")
 
 thumbnails = db.get_recipe_thumbnails(
     tuple(sorted({r["name"] for r in detail["recipes"] if r["name"] in existing_recipe_names}))
