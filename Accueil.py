@@ -64,7 +64,7 @@ Bienvenue ! Cette application te permet de :
 
     with col2:
         if st.button("🍳 Ajouter une recette"):
-            st.switch_page("pages/1_🍳_Ajouter_une_recette.py")
+            st.switch_page("pages/1_Ajouter_une_recette.py")
         st.markdown("Partage tes recettes coup de coeur ou celles de ton grand-père, ta tante, etc. "
         "**Réservé aux utilisateur·rices avec un compte** —"
         "Crée un compte ou connecte-toi via le menu à gauche.")
@@ -103,7 +103,7 @@ Bienvenue ! Cette application te permet de :
 
 home_page_obj = st.Page(home_page, title="Accueil", default=True)
 generer_page = st.Page("pages/2_Generer_ma_liste.py", title="Générer ma liste")
-ajouter_page = st.Page("pages/1_🍳_Ajouter_une_recette.py", title="Ajouter une recette")
+ajouter_page = st.Page("pages/1_Ajouter_une_recette.py", title="Ajouter une recette")
 
 # (page, fichier d'icône dans assets/icons/, emoji de secours si le fichier
 # n'existe pas encore — le menu reste donc toujours fonctionnel même avant
@@ -116,24 +116,22 @@ NAV_ITEMS = [
 pages = [home_page_obj, generer_page, ajouter_page]
 
 if auth.is_logged_in():
-    mes_listes_page = st.Page("pages/5_📋_Mes_listes.py", title="Mes listes", icon="📋")
+    mes_listes_page = st.Page("pages/5_Mes_listes.py", title="Mes listes")
     pages.append(mes_listes_page)
     NAV_ITEMS.append((mes_listes_page, "mes_listes.png", "📋"))
 
 if auth.is_admin():
     gestion_users_page = st.Page(
-        "pages/3_👤_Gestion_des_utilisateur·rices.py",
+        "pages/3_Gestion_des_utilisateur·rices.py",
         title="Gestion des utilisateur·rices",
-        icon="👤",
     )
     pages.append(gestion_users_page)
     NAV_ITEMS.append((gestion_users_page, "gestion_utilisateurs.png", "👤"))
 
 if auth.can_manage_products():
     gestion_produits_page = st.Page(
-        "pages/4_🧺_Produits.py",
+        "pages/4_Produits.py",
         title="Gestion des produits",
-        icon="🧺",
     )
     pages.append(gestion_produits_page)
     NAV_ITEMS.append((gestion_produits_page, "gestion_produits.png", "🧺"))
