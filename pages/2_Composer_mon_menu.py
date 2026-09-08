@@ -250,7 +250,7 @@ with cart_col:
                     cart_ids.discard(rid)
                     st.rerun()
             st.divider()
-            if st.button("🗑️ Vider le panier", key="cart_clear_all", use_container_width=True):
+            if st.button("🗑️ Vider le menu", key="cart_clear_all", use_container_width=True):
                 cart_ids.clear()
                 st.rerun()
 
@@ -264,7 +264,7 @@ with cart_col:
                 args=(REFERENCE_CART_KEY, REFERENCE_MAIN_KEY),
             )
             if st.button(
-                "🧾 Générer la liste de courses",
+                "🧾 Générer la liste de courses et le carnet de recette",
                 key="cart_generate",
                 type="primary",
                 use_container_width=True,
