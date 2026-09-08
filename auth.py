@@ -106,8 +106,8 @@ def render_sidebar_auth() -> None:
 
             with signup_tab:
                 st.caption(
-                    "Tu recevras directement le statut éditeur·rice, ce qui "
-                    "te permettra d'ajouter des recettes."
+                    "Après avoir crée ton compte, tu pourras ajouter tes propres",
+                    "recettes et enregistrer les menus que tu as composé."
                 )
                 with st.form("_auth_signup_form", clear_on_submit=True):
                     new_username = st.text_input("Choisis un identifiant")
