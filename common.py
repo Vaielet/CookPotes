@@ -110,6 +110,7 @@ def icon_css(
     fallback_emoji: str,
     tag: str = "a",
     justify: str = "flex-start",
+    size: int = 26,
 ) -> str:
     """
     Règle CSS qui insère une icône juste avant le texte d'un élément (lien
@@ -129,6 +130,13 @@ def icon_css(
     `justify` règle l'alignement horizontal du contenu (icône + texte) :
     "flex-start" par défaut (aligné à gauche, adapté à un menu), ou
     "center" pour un gros bouton d'action centré (voir `icon_button`).
+
+    `size` règle la taille de l'icône en pixels (26 par défaut, comme
+    avant). À ajuster selon le contexte : plus petit dans un lien de menu
+    compact, plus grand dans un titre de page ou un gros bouton d'action.
+    Pour l'émoji de secours, la taille de police est mise à l'échelle
+    proportionnellement (ratio ~0.85, pour rester visuellement proche de
+    l'ancien réglage fixe `1.4em` / 26px).
     """
     if icon_path.exists():
         mime = mimetypes.guess_type(icon_path.name)[0] or "image/png"
@@ -139,15 +147,15 @@ def icon_css(
             background-size: contain;
             background-repeat: no-repeat;
             background-position: center;
-            width: 26px;
-            height: 26px;
+            width: {size}px;
+            height: {size}px;
         """
     else:
         before_content = f"""
             content: "{fallback_emoji}";
-            font-size: 1.4em;
+            font-size: {round(size * 0.85)}px;
             line-height: 1;
-            width: 26px;
+            width: {size}px;
             text-align: center;
         """
     return f"""
@@ -171,6 +179,7 @@ def icon_button(
     fallback_emoji: str,
     key: str,
     justify: str = "center",
+    size: int = 26,
     **button_kwargs,
 ) -> bool:
     """
@@ -178,6 +187,7 @@ def icon_button(
     dans images/icons/<icon_filename> ; l'émoji de secours est utilisé tant
     que ce fichier n'existe pas). Centré par défaut, comme un gros bouton
     d'action ; passe `justify="flex-start"` pour un bouton aligné à gauche.
+    `size` (px, 26 par défaut) règle la taille de l'icône.
 
     Exemple :
         if common.icon_button("Générer ma liste", "generer_mon_menu.png", "🛒", key="btn_generer"):
@@ -192,7 +202,7 @@ def icon_button(
         # quand plusieurs de ces boutons/liens sont empilés (voir menu de
         # navigation dans Accueil.py).
         st.markdown(
-            f"<style>{icon_css(container_key, ICONS_DIR / icon_filename, fallback_emoji, tag='button', justify=justify)}</style>",
+            f"<style>{icon_css(container_key, ICONS_DIR / icon_filename, fallback_emoji, tag='button', justify=justify, size=size)}</style>",
             unsafe_allow_html=True,
         )
     return clicked
@@ -204,11 +214,13 @@ def icon_page_link(
     fallback_emoji: str,
     label: str | None = None,
     justify: str = "flex-start",
+    size: int = 26,
 ) -> None:
     """
     st.page_link avec une icône perso collée devant le texte, alignée à
     gauche par défaut — adapté à un élément de menu de navigation (voir
-    `icon_button` pour un bouton d'action).
+    `icon_button` pour un bouton d'action). `size` (px, 26 par défaut)
+    règle la taille de l'icône — plutôt à réduire ici (menu compact).
     """
     container_key = f"navitem-{slug(Path(icon_filename).stem)}"
     with st.container(key=container_key):
@@ -216,7 +228,7 @@ def icon_page_link(
         # Voir le commentaire équivalent dans icon_button : le <style> est
         # injecté ici, à l'intérieur du container, pas juste après.
         st.markdown(
-            f"<style>{icon_css(container_key, ICONS_DIR / icon_filename, fallback_emoji, tag='a', justify=justify)}</style>",
+            f"<style>{icon_css(container_key, ICONS_DIR / icon_filename, fallback_emoji, tag='a', justify=justify, size=size)}</style>",
             unsafe_allow_html=True,
         )
 
@@ -231,6 +243,7 @@ def icon_title(
     level: str = "h1",
     key: str | None = None,
     justify: str = "flex-start",
+    size: int = 26,
 ) -> None:
     """
     Titre avec une icône perso collée devant le texte, à la place d'un
@@ -244,8 +257,11 @@ def icon_title(
     produite par ces fonctions Streamlit, puisque c'est ce qui est ciblé
     par le CSS généré (voir `icon_css`).
 
+    `size` (px, 26 par défaut) règle la taille de l'icône — plutôt à
+    augmenter ici pour un st.title bien visible (ex: 36-40px).
+
     Exemple :
-        common.icon_title("Ta liste de courses", "generer_mon_menu.png", "🛒")
+        common.icon_title("Ta liste de courses", "generer_mon_menu.png", "🛒", size=36)
         # au lieu de st.title("🛒 Ta liste de courses")
     """
     heading_fn = _ICON_TITLE_HEADING_FUNCS.get(level)
@@ -255,7 +271,7 @@ def icon_title(
     with st.container(key=container_key):
         heading_fn(text)
         st.markdown(
-            f"<style>{icon_css(container_key, ICONS_DIR / icon_filename, fallback_emoji, tag=level, justify=justify)}</style>",
+            f"<style>{icon_css(container_key, ICONS_DIR / icon_filename, fallback_emoji, tag=level, justify=justify, size=size)}</style>",
             unsafe_allow_html=True,
         )
 
