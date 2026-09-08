@@ -299,7 +299,7 @@ if view == "results":
 
 # --- Vue sélection des recettes ---
 
-title_col, cart_col = st.columns([5, 2])
+title_col, cart_col = st.columns([5, 2],vertical_alignment="center")
 with title_col:
     common.icon_title("Composer mon menu", "generer_mon_menu.png", "🛒")
 with cart_col:
