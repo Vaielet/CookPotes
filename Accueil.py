@@ -42,6 +42,12 @@ st.set_page_config(
     layout="wide",
 )
 
+def get_image_base64(file_path):
+    """Convertit une image locale en chaîne Base64."""
+    with open(file_path, "rb") as f:
+        data = f.read()
+    return base64.b64encode(data).decode("utf-8")
+
 
 def home_page() -> None:
     db.init_db()
@@ -148,12 +154,6 @@ if auth.can_manage_products():
 # (pg.run() plus bas) et qui gère les URLs.
 pg = st.navigation(pages, position="hidden")
 
-
-def get_image_base64(file_path):
-    """Convertit une image locale en chaîne Base64."""
-    with open(file_path, "rb") as f:
-        data = f.read()
-    return base64.b64encode(data).decode("utf-8")
 
 # --- CONVERSION DU LOGO ---
 logo_b64 = get_image_base64("images/CookPotes_logo_transparent.png")
