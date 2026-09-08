@@ -1,572 +1,1371 @@
 """
-Page 2 — Composer mon menu.
-
-L'utilisateur choisit des recettes parmi celles enregistrées en base
-(avec recherche, filtre par catégorie et par auteur·rice), le nombre de
-personnes pour chacune via un bouton « Ajouter au panier » façon e-shop
-(un menu panier en haut à droite récapitule la sélection), puis génère :
-  - la liste de courses agrégée et regroupée par rayon
-    (téléchargement .txt, copie dans le presse-papiers, ou partage natif
-    vers n'importe quelle appli — Notes, WhatsApp, Mail... — sur mobile
-    comme sur desktop)
-  - un carnet de recettes en PDF (téléchargement)
+common.py — Logique métier partagée entre les pages de l'application :
+conversion d'unités, agrégation de la liste de courses, génération des
+images de secours et du carnet de recettes PDF.
 """
 
-import html
-import json
-from fractions import Fraction
+from __future__ import annotations
 
 import streamlit as st
-import streamlit.components.v1 as components
+import base64
+import html
+import io
+import mimetypes
+import platform
+import re
+import subprocess
+import unicodedata
+from dataclasses import dataclass, field
+from collections import defaultdict
+from datetime import datetime
+from fractions import Fraction
+from pathlib import Path
 
-import auth
-import db
-import common
-from common import RecipeChoice
+from PIL import Image, ImageDraw, ImageFont, ImageOps
 
-
-def render_share_widget(text: str, height: int = 90) -> None:
-    """
-    Affiche deux boutons — « Copier » et « Partager » — basés sur des API
-    standard du navigateur, qui fonctionnent quel que soit l'appareil
-    (Windows, macOS, Linux, iOS, Android) :
-
-    - Copier : copie le texte dans le presse-papiers (navigator.clipboard,
-      avec un repli via document.execCommand pour les navigateurs plus
-      restrictifs). L'utilisateur colle ensuite où il veut (Notes, Google
-      Keep, WhatsApp, un mail...).
-    - Partager : ouvre le sélecteur de partage natif du système
-      (navigator.share) quand le navigateur le supporte — très répandu sur
-      mobile (iOS/Android), et de plus en plus sur desktop. Le bouton reste
-      caché s'il n'est pas supporté.
-    """
-    safe_text = json.dumps(text)
-
-    components.html(
-        f"""
-        <div style="display:flex; gap:10px; flex-wrap:wrap; align-items:center;">
-          <button id="copy-btn" style="
-              padding:0.5em 1em; border-radius:8px; border:1px solid #ccc;
-              background:#f0f0f0; cursor:pointer; font-size:0.95em;">
-            📋 Copier
-          </button>
-          <button id="share-btn" style="
-              padding:0.5em 1em; border-radius:8px; border:1px solid #ccc;
-              background:#f0f0f0; cursor:pointer; font-size:0.95em; display:none;">
-            📤 Partager...
-          </button>
-          <span id="copy-status" style="font-size:0.9em; color:green;"></span>
-        </div>
-        <script>
-          const text = {safe_text};
-
-          const copyBtn = document.getElementById("copy-btn");
-          const status = document.getElementById("copy-status");
-          copyBtn.addEventListener("click", async () => {{
-            try {{
-              await navigator.clipboard.writeText(text);
-              status.textContent = "Copié !";
-            }} catch (err) {{
-              const ta = document.createElement("textarea");
-              ta.value = text;
-              ta.style.position = "fixed";
-              ta.style.opacity = "0";
-              document.body.appendChild(ta);
-              ta.focus();
-              ta.select();
-              try {{
-                document.execCommand("copy");
-                status.textContent = "Copié !";
-              }} catch (err2) {{
-                status.textContent = "Copie auto impossible, sélectionne le texte à la main.";
-              }}
-              document.body.removeChild(ta);
-            }}
-            setTimeout(() => {{ status.textContent = ""; }}, 2500);
-          }});
-
-          const shareBtn = document.getElementById("share-btn");
-          if (navigator.share) {{
-            shareBtn.style.display = "inline-block";
-            shareBtn.addEventListener("click", async () => {{
-              try {{
-                await navigator.share({{ text: text, title: "Liste de courses" }});
-              }} catch (err) {{
-                // Annulé par l'utilisateur, ou non supporté : rien à faire.
-              }}
-            }});
-          }}
-        </script>
-        """,
-        height=height,
-    )
-
-db.init_db()
-
-common.header_logo()
-
-auth.render_sidebar_auth()  # affichage informatif ; cette page reste accessible sans connexion
-
-recipes = db.get_all_recipes()
-
-if not recipes:
-    st.warning(
-        "Aucune recette n'est enregistrée pour l'instant. "
-        "Rends-toi sur la page « 🍳 Ajouter une recette » pour commencer."
-    )
-    st.stop()
+from reportlab.lib.pagesizes import A4
+from reportlab.lib.units import cm
+from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+from reportlab.lib.enums import TA_CENTER
+from reportlab.lib import colors
+from reportlab.platypus import (
+    SimpleDocTemplate, Paragraph, Spacer, PageBreak, Image as RLImage,
+    Table, TableStyle, ListFlowable, ListItem,
+)
 
 # ---------------------------------------------------------------------------
-# Panier — état persistant (style e-shop)
+# Conversions d'unités pour l'agrégation de la liste de courses
 # ---------------------------------------------------------------------------
-# Un set d'ids de recettes ajoutées au panier. On l'indexe par id (et non
-# par nom filtré affiché à l'écran) pour que le panier reste cohérent même
-# si l'utilisateur·rice change la recherche/les filtres entre-temps : une
-# recette ajoutée au panier y reste, qu'elle soit visible ou non dans la
-# grille à un instant donné.
-if "cart" not in st.session_state:
-    st.session_state["cart"] = set()
 
-recipes_by_id = {r["id"]: (name, r) for name, r in recipes.items()}
+UNIT_CONVERSIONS = {
+    "cac": ("ml", 5),
+    "cuillère à café": ("ml", 5),
 
-# Filet de sécurité : si une recette du panier a été supprimée entre-temps.
-st.session_state["cart"] &= set(recipes_by_id.keys())
-cart_ids: set[int] = st.session_state["cart"]
+    "cas": ("ml", 15),
+    "cuillère à soupe": ("ml", 15),
 
+    "l": ("ml", 1000),
+    "litre": ("ml", 1000),
 
-def _people_key(recipe_id: int, widget: str) -> str:
-    """Nom de la clé session_state pour le sélecteur de personnes d'une recette,
-    selon l'endroit où il est affiché (`card` = grille de recettes, `cart` = menu panier)."""
-    return f"people_{widget}_{recipe_id}"
+    "kg": ("g", 1000),
+}
 
-
-def _people_for(recipe_id: int, default: int) -> int:
-    """
-    Nombre de personnes actuellement choisi pour une recette, quel que soit
-    le widget (carte ou panier) qui a été utilisé en dernier pour le régler.
-    """
-    for widget in ("card", "cart"):
-        key = _people_key(recipe_id, widget)
-        if key in st.session_state:
-            return int(st.session_state[key])
-    return int(default)
-
-
-def _sync_people(recipe_id: int, changed_widget: str) -> None:
-    """
-    Callback appelé quand le nombre de personnes est modifié depuis la
-    carte OU depuis le panier : reporte la nouvelle valeur sur l'autre
-    widget (même clé sous-jacente impossible car deux number_input
-    distincts affichent la même quantité à deux endroits de l'écran).
-    """
-    other_widget = "cart" if changed_widget == "card" else "card"
-    changed_key = _people_key(recipe_id, changed_widget)
-    other_key = _people_key(recipe_id, other_widget)
-    st.session_state[other_key] = st.session_state[changed_key]
-
-
-# Construit la sélection à partir du panier (persistant), pas seulement des
-# recettes actuellement visibles à l'écran — une recette ajoutée au panier
-# reste sélectionnée même si elle sort de la recherche/du filtre actif.
-# Calculé ici (avant l'affichage du panier) car le bouton « Générer » du
-# menu panier en a besoin, en plus de celui tout en bas de la page.
-selected_choices: list[RecipeChoice] = [
-    RecipeChoice(recipes_by_id[rid][0], _people_for(rid, recipes_by_id[rid][1]["portions_base"]))
-    for rid in cart_ids
+# Unités suggérées dans le formulaire d'ajout de recette
+COMMON_UNITS = [
+    "g", "kg", "ml", "l", "cac", "cas", "pièce", "gousse",
+    "tranche", "feuilles", "brins", "cube", "pincée", "unité",
 ]
 
-# Le champ « Référence » existe à deux endroits (menu panier + bas de page) ;
-# les deux widgets sont synchronisés comme le nombre de personnes ci-dessus.
-REFERENCE_MAIN_KEY = "reference_main"
-REFERENCE_CART_KEY = "reference_cart"
+# Catégories/régimes suggérés dans le formulaire d'ajout de recette. La
+# liste n'est pas fermée : le formulaire permet aussi d'ajouter des
+# catégories personnalisées en texte libre.
+COMMON_TAGS = [
+    "Végétarien",
+    "Végan",
+    "Sans gluten",
+    "Sans lactose",
+    "Sans noix",
+    "Pescétarien",
+    "Rapide (< 30 min)",
+    "Économique",
+    "Épicé",
+    "Sucré",
+    "Healthy",
+    "Enfants",
+    "Fêtes / Occasions spéciales",
+    "Plat unique",
+    "Entrée",
+    "Dessert",
+]
 
+# Longueur maximale du petit texte de présentation d'une recette. Doit
+# correspondre à db.MAX_DESCRIPTION_CHARS.
+MAX_DESCRIPTION_CHARS = 300
 
-def _current_reference() -> str:
-    for key in (REFERENCE_CART_KEY, REFERENCE_MAIN_KEY):
-        if key in st.session_state:
-            return st.session_state[key]
-    return ""
-
-
-def _sync_reference(changed_key: str, other_key: str) -> None:
-    st.session_state[other_key] = st.session_state[changed_key]
-
-
-def _generate_shopping_list() -> None:
-    """Callback partagé par le bouton du panier et celui tout en bas de page."""
-    st.session_state["choices"] = selected_choices
-    st.session_state["reference"] = _current_reference().strip() or "Mon menu"
-    st.session_state["page_view"] = "results"
+def header_logo():
+    col1, col2, col3 = st.columns(3)
+    with col2:
+        st.image("images/CookPotes_logo.png", output_format="PNG", width=1000)
 
 
 # ---------------------------------------------------------------------------
-# Navigation entre la page de sélection des recettes et la page de résultats
+# Icônes personnalisées (menu de navigation, boutons) — utilisables depuis
+# n'importe quelle page de l'appli, pas seulement Accueil.py. Un fichier
+# d'icône manquant dans images/icons/ ne casse jamais rien : l'émoji de
+# secours prend le relais automatiquement.
 # ---------------------------------------------------------------------------
-if "page_view" not in st.session_state:
-    st.session_state["page_view"] = "selection"
 
-view = st.session_state["page_view"]
-# Filet de sécurité : pas de résultats valides (ex. app relancée) → retour à la sélection.
-if view == "results" and not st.session_state.get("choices"):
-    st.session_state["page_view"] = "selection"
-    view = "selection"
+ICONS_DIR = Path(__file__).parent / "images" / "icons"
 
-if view == "results":
-    top_col, back_col = st.columns([5, 2],vertical_alignment="center")
-    with top_col:
-        common.icon_title("Composer mon menu", "generer_mon_menu.png", "🛒")
-    with back_col:
-        if st.button("⬅️ Retour à la sélection", key="back_to_selection", use_container_width=True):
-          st.session_state["page_view"] = "selection"
-          st.rerun()
-          
-    st.header(st.session_state["reference"])
-    choices = st.session_state.get("choices") or []
-    choices = [c for c in choices if c.name in recipes]
-    if not choices:
-        st.warning("Les recettes sélectionnées ne sont plus disponibles. Merci de refaire votre sélection.")
-        st.stop()
 
-    reference = st.session_state.get("reference", "")
+def slug(name: str) -> str:
+    """Transforme un nom en identifiant sûr pour une clé de container /
+    classe CSS (lettres, chiffres, tirets seulement)."""
+    return re.sub(r"[^a-z0-9]+", "-", name.lower()).strip("-")
 
-    shopping = common.build_shopping_list(choices, recipes)
-    grouped = shopping.as_grouped_lines()
 
-    shopping_title = reference or "Liste de courses de la semaine"
-    shopping_text = common.build_shopping_text(shopping_title, grouped)
-    booklet_title = f"Carnet de recettes — {reference}" if reference else "Carnet de recettes de la semaine"
+def icon_css(
+    container_key: str,
+    icon_path: Path,
+    fallback_emoji: str,
+    tag: str = "a",
+    justify: str = "flex-start",
+    size: int = 26,
+) -> str:
+    """
+    Règle CSS qui insère une icône juste avant le texte d'un élément (lien
+    du menu, ou bouton — via `tag="button"`), DANS l'élément lui-même
+    (pseudo-élément ::before), plutôt que dans une colonne Streamlit
+    séparée à côté. Deux avantages par rapport à une mise en page en
+    colonnes :
+      - alignement pile au pixel près, puisque icône et texte appartiennent
+        au même élément flexbox ;
+      - jamais d'empilement vertical sur mobile, puisqu'il n'y a qu'UN
+        seul composant Streamlit — les st.columns, elles, s'empilent sous
+        une certaine largeur d'écran.
 
-    list_col, booklet_col = st.columns(2, gap="large")
+    Si le fichier d'icône n'existe pas, l'émoji de secours est utilisé
+    comme contenu texte du pseudo-élément — aucune image à charger.
 
-    # --- Bloc liste de courses ---
-    with list_col:
-        with st.container(border=True):
-            st.subheader("🧾 Liste de courses")
-            st.download_button(
-                "📄 Télécharger (.txt)",
-                data=shopping_text,
-                file_name="liste_de_courses.txt",
-                mime="text/plain",
-                use_container_width=True,
-            )
-            #st.caption("Ou copie/partage-la directement, où que tu sois (PC, mobile, tablette) :")
-            render_share_widget(shopping_text)
+    `justify` règle l'alignement horizontal du contenu (icône + texte) :
+    "flex-start" par défaut (aligné à gauche, adapté à un menu), ou
+    "center" pour un gros bouton d'action centré (voir `icon_button`).
 
-    # --- Bloc carnet de recettes ---
-    with booklet_col:
-        with st.container(border=True):
-            st.subheader("📕 Carnet de recettes")
-            with st.spinner("Génération du carnet de recettes..."):
-                pdf_bytes = common.build_recipe_booklet_pdf(choices, recipes, title=booklet_title)
-            st.download_button(
-                "📕 Télécharger le PDF",
-                data=pdf_bytes,
-                file_name="carnet_de_recettes.pdf",
-                mime="application/pdf",
-                use_container_width=True,
-            )
-
-    st.divider()
-
-    # --- Enregistrement sur le compte (concerne les deux blocs ci-dessus) ---
-    if auth.is_logged_in():
-        if st.button("💾 Enregistrer cette liste dans mon compte", type="primary", use_container_width=True):
-            try:
-                db.save_shopping_list(
-                    user_id=auth.current_user_id(),
-                    reference=reference,
-                    recipe_choices=[(c.name, c.people) for c in choices],
-                    grouped_items=grouped,
-                )
-            except db.SavedListLimitReached as exc:
-                st.error(str(exc))
-                st.page_link("pages/5_Mes_menus.py", label="📋 Aller à Mes menus", icon="📋")
-            else:
-                st.success(
-                    "Menu ! Retrouve-le, coche les articles au fur "
-                    "et à mesure de tes courses, et affiche tes recettes sur la page « 📋 Mes menus »."
-                )
-                st.page_link("pages/5_Mes_menus.py", label="📋 Aller à Mes menus", icon="📋")
+    `size` règle la taille de l'icône en pixels (26 par défaut, comme
+    avant). À ajuster selon le contexte : plus petit dans un lien de menu
+    compact, plus grand dans un titre de page ou un gros bouton d'action.
+    Pour l'émoji de secours, la taille de police est mise à l'échelle
+    proportionnellement (ratio ~0.85, pour rester visuellement proche de
+    l'ancien réglage fixe `1.4em` / 26px).
+    """
+    if icon_path.exists():
+        mime = mimetypes.guess_type(icon_path.name)[0] or "image/png"
+        b64 = base64.b64encode(icon_path.read_bytes()).decode()
+        before_content = f"""
+            content: "";
+            background-image: url("data:{mime};base64,{b64}");
+            background-size: contain;
+            background-repeat: no-repeat;
+            background-position: center;
+            width: {size}px;
+            height: {size}px;
+        """
     else:
-        st.caption(
-            "🔒 Connecte-toi (menu de gauche) pour enregistrer ce menu "
-            "sur ton compte, cocher les articles au fur et à mesure de tes "
-            "courses, et la retrouver plus tard."
+        before_content = f"""
+            content: "{fallback_emoji}";
+            font-size: {round(size * 0.85)}px;
+            line-height: 1;
+            width: {size}px;
+            text-align: center;
+        """
+    return f"""
+        .st-key-{container_key} {tag} {{
+            display: flex;
+            align-items: center;
+            justify-content: {justify};
+            gap: 0.6em;
+        }}
+        .st-key-{container_key} {tag}::before {{
+            {before_content}
+            display: inline-block;
+            flex-shrink: 0;
+        }}
+    """
+
+
+def icon_button(
+    label: str,
+    icon_filename: str,
+    fallback_emoji: str,
+    key: str,
+    justify: str = "center",
+    size: int = 40,
+    **button_kwargs,
+) -> bool:
+    """
+    st.button avec une icône perso collée devant le texte (fichier attendu
+    dans images/icons/<icon_filename> ; l'émoji de secours est utilisé tant
+    que ce fichier n'existe pas). Centré par défaut, comme un gros bouton
+    d'action ; passe `justify="flex-start"` pour un bouton aligné à gauche.
+    `size` (px, 26 par défaut) règle la taille de l'icône.
+
+    Exemple :
+        if common.icon_button("Générer ma liste", "generer_mon_menu.png", "🛒", key="btn_generer"):
+            st.switch_page("pages/2_Generer_ma_liste.py")
+    """
+    container_key = f"iconbtn-{slug(key)}"
+    with st.container(key=container_key):
+        clicked = st.button(label, key=key, **button_kwargs)
+        # Le tag <style> est injecté DANS le même container que le bouton
+        # (plutôt qu'en élément frère juste après) pour ne pas ajouter un
+        # bloc de plus à l'espacement vertical du parent — important
+        # quand plusieurs de ces boutons/liens sont empilés (voir menu de
+        # navigation dans Accueil.py).
+        st.markdown(
+            f"<style>{icon_css(container_key, ICONS_DIR / icon_filename, fallback_emoji, tag='button', justify=justify, size=size)}</style>",
+            unsafe_allow_html=True,
+        )
+    return clicked
+
+
+def icon_page_link(
+    page,
+    icon_filename: str,
+    fallback_emoji: str,
+    label: str | None = None,
+    justify: str = "flex-start",
+    size: int = 26,
+) -> None:
+    """
+    st.page_link avec une icône perso collée devant le texte, alignée à
+    gauche par défaut — adapté à un élément de menu de navigation (voir
+    `icon_button` pour un bouton d'action). `size` (px, 26 par défaut)
+    règle la taille de l'icône — plutôt à réduire ici (menu compact).
+    """
+    container_key = f"navitem-{slug(Path(icon_filename).stem)}"
+    with st.container(key=container_key):
+        st.page_link(page, label=label or page.title)
+        # Voir le commentaire équivalent dans icon_button : le <style> est
+        # injecté ici, à l'intérieur du container, pas juste après.
+        st.markdown(
+            f"<style>{icon_css(container_key, ICONS_DIR / icon_filename, fallback_emoji, tag='a', justify=justify, size=size)}</style>",
+            unsafe_allow_html=True,
         )
 
-    st.stop()
+
+_ICON_TITLE_HEADING_FUNCS = {"h1": st.title, "h2": st.header, "h3": st.subheader}
 
 
-# --- Vue sélection des recettes ---
+def icon_title(
+    text: str,
+    icon_filename: str,
+    fallback_emoji: str,
+    level: str = "h1",
+    key: str | None = None,
+    justify: str = "flex-start",
+    size: int = 100,
+) -> None:
+    """
+    Titre avec une icône perso collée devant le texte, à la place d'un
+    emoji dans la chaîne — utilisable pour un titre de page (st.title),
+    un st.header ou un st.subheader, mais aussi pour un petit titre de
+    section dans la sidebar (ex: « Compte » au-dessus du formulaire de
+    connexion).
 
-title_col, cart_col = st.columns([5, 2],vertical_alignment="center")
-with title_col:
-    common.icon_title("Composer mon menu", "generer_mon_menu.png", "🛒")
-with cart_col:
-    st.write("")
-    with st.popover(f"Mon menu ({len(cart_ids)})", use_container_width=True):
-        st.markdown("#### Mon menu")
-        if not cart_ids:
-            st.caption("Ton menu est vide pour l'instant — ajoute des recettes ci-dessous.")
+    `level` : "h1" (st.title, par défaut), "h2" (st.header) ou "h3"
+    (st.subheader) — doit correspondre à la balise HTML réellement
+    produite par ces fonctions Streamlit, puisque c'est ce qui est ciblé
+    par le CSS généré (voir `icon_css`).
+
+    `size` (px, 26 par défaut) règle la taille de l'icône — plutôt à
+    augmenter ici pour un st.title bien visible (ex: 36-40px).
+
+    Exemple :
+        common.icon_title("Ta liste de courses", "generer_mon_menu.png", "🛒", size=36)
+        # au lieu de st.title("🛒 Ta liste de courses")
+    """
+    heading_fn = _ICON_TITLE_HEADING_FUNCS.get(level)
+    if heading_fn is None:
+        raise ValueError(f"level inconnu : {level!r} (attendu : 'h1', 'h2' ou 'h3')")
+    container_key = f"icontitle-{slug(key or text)}"
+    with st.container(key=container_key):
+        heading_fn(text)
+        st.markdown(
+            f"<style>{icon_css(container_key, ICONS_DIR / icon_filename, fallback_emoji, tag=level, justify=justify, size=size)}</style>",
+            unsafe_allow_html=True,
+        )
+
+
+def format_datetime(iso_string: str | None) -> str:
+    """Formate une date ISO stockée en base en un texte lisible (ex: 28/08/2026 à 14h32)."""
+    if not iso_string:
+        return "date inconnue"
+    try:
+        dt = datetime.fromisoformat(iso_string)
+    except ValueError:
+        return iso_string
+    return dt.strftime("%d/%m/%Y à %Hh%M")
+
+
+def format_time_minutes(minutes: int | None) -> str | None:
+    """Formate une durée en minutes en texte lisible (ex: 1h15, 45 min)."""
+    if minutes is None:
+        return None
+    minutes = int(minutes)
+    if minutes <= 0:
+        return None
+    if minutes < 60:
+        return f"{minutes} min"
+    hours, rest = divmod(minutes, 60)
+    return f"{hours}h{rest:02d}" if rest else f"{hours}h"
+
+
+def normalize_unit(quantity, unit):
+    """
+    Convertit une quantité vers une unité standard pour la liste
+    de courses uniquement.
+
+    Exemples :
+        1 cac  -> 5 ml
+        2 cas  -> 30 ml
+        1.5 kg -> 1500 g
+    """
+    unit = unit.strip().lower()
+
+    if unit in UNIT_CONVERSIONS:
+        target_unit, factor = UNIT_CONVERSIONS[unit]
+        quantity = Fraction(quantity).limit_denominator(100) * factor
+        return quantity, target_unit
+
+    return Fraction(quantity).limit_denominator(100), unit
+
+
+
+# ---------------------------------------------------------------------------
+# Base de produits d'épicerie : nom canonique, synonymes, rayon.
+# ---------------------------------------------------------------------------
+#
+# Quand une recette est encodée (page « Ajouter une recette »), chaque nom
+# d'ingrédient tapé librement est comparé aux synonymes ci-dessous et
+# remplacé par le nom canonique correspondant (voir `match_product`) — ça
+# évite de se retrouver avec "courgette" et "courgettes vertes" comme deux
+# lignes séparées dans la liste de courses. Le rayon (catégorie) sert à
+# regrouper la liste de courses par zone du magasin.
+#
+# La liste ci-dessous n'est que la donnée de DÉPART : au premier lancement,
+# db.py la copie dans une table `products` sur Supabase (voir
+# `db._seed_default_products_if_empty`). C'est ensuite CETTE table, pas
+# cette liste Python, qui fait foi — `match_product` interroge la base à
+# chaque appel (avec mise en cache). Pour ajouter des produits par la
+# suite, voir le script `scripts/add_products.py` plutôt que modifier cette
+# liste (qui ne sera plus relue une fois la table peuplée).
+#
+# Un produit non reconnu n'est pas bloquant — il est simplement classé dans
+# "Divers" et gardé tel quel.
+PRODUCTS = [
+    {
+        "canonical": "Courgette",
+        "synonyms": ["courgette", "courgettes", "courgette verte", "courgettes vertes"],
+        "category": "Fruits et légumes",
+    },
+    {
+        "canonical": "Carotte",
+        "synonyms": ["carotte", "carottes"],
+        "category": "Fruits et légumes",
+    },
+    {
+        "canonical": "Oignon",
+        "synonyms": ["oignon", "oignons", "oignon jaune", "oignons jaunes"],
+        "category": "Fruits et légumes",
+    },
+    {
+        "canonical": "Ail",
+        "synonyms": ["ail", "gousse d'ail", "gousses d'ail"],
+        "category": "Fruits et légumes",
+    },
+    {
+        "canonical": "Poivron rouge",
+        "synonyms": ["poivron rouge", "poivrons rouges"],
+        "category": "Fruits et légumes",
+    },
+    {
+        "canonical": "Tomate",
+        "synonyms": ["tomate", "tomates"],
+        "category": "Fruits et légumes",
+    },
+    {
+        "canonical": "Tomates cerises",
+        "synonyms": ["tomate cerise", "tomates cerises", "tomates cerise"],
+        "category": "Fruits et légumes",
+    },
+    {
+        "canonical": "Pomme de terre",
+        "synonyms": ["pomme de terre", "pommes de terre", "patate", "patates"],
+        "category": "Fruits et légumes",
+    },
+    {
+        "canonical": "Citron",
+        "synonyms": ["citron", "citrons", "citron jaune"],
+        "category": "Fruits et légumes",
+    },
+    {
+        "canonical": "Persil",
+        "synonyms": ["persil", "persil plat", "persil frisé"],
+        "category": "Fruits et légumes",
+    },
+    {
+        "canonical": "Blanc de poulet",
+        "synonyms": ["blanc de poulet", "blancs de poulet", "escalope de poulet", "filet de poulet"],
+        "category": "Boucherie",
+    },
+    {
+        "canonical": "Bœuf haché",
+        "synonyms": ["bœuf haché", "boeuf haché", "steak haché", "viande hachée"],
+        "category": "Boucherie",
+    },
+    {
+        "canonical": "Lardons",
+        "synonyms": ["lardons", "lardons fumés", "lardon"],
+        "category": "Boucherie",
+    },
+    {
+        "canonical": "Saucisse",
+        "synonyms": ["saucisse", "saucisses", "chipolata", "chipolatas"],
+        "category": "Boucherie",
+    },
+    {
+        "canonical": "Saumon",
+        "synonyms": ["saumon", "pavé de saumon", "filet de saumon"],
+        "category": "Poissonnerie",
+    },
+    {
+        "canonical": "Crevettes",
+        "synonyms": ["crevette", "crevettes", "crevettes roses", "gambas"],
+        "category": "Poissonnerie",
+    },
+    {
+        "canonical": "Lait",
+        "synonyms": ["lait", "lait demi-écrémé", "lait entier"],
+        "category": "Crèmerie",
+    },
+    {
+        "canonical": "Beurre",
+        "synonyms": ["beurre", "beurre doux", "beurre demi-sel"],
+        "category": "Crèmerie",
+    },
+    {
+        "canonical": "Crème fraîche",
+        "synonyms": ["crème fraîche", "crème fraiche", "crème liquide", "crème épaisse"],
+        "category": "Crèmerie",
+    },
+    {
+        "canonical": "Œuf",
+        "synonyms": ["œuf", "œufs", "oeuf", "oeufs"],
+        "category": "Crèmerie",
+    },
+    {
+        "canonical": "Fromage râpé",
+        "synonyms": ["fromage râpé", "gruyère râpé", "emmental râpé"],
+        "category": "Crèmerie",
+    },
+    {
+        "canonical": "Mozzarella",
+        "synonyms": ["mozzarella", "boule de mozzarella"],
+        "category": "Crèmerie",
+    },
+    {
+        "canonical": "Pain",
+        "synonyms": ["pain", "baguette", "baguettes"],
+        "category": "Boulangerie",
+    },
+    {
+        "canonical": "Pâtes",
+        "synonyms": ["pâtes", "pate", "pates", "spaghetti", "spaghettis", "penne"],
+        "category": "Épicerie",
+    },
+    {
+        "canonical": "Riz",
+        "synonyms": ["riz", "riz basmati", "riz complet", "riz rond"],
+        "category": "Épicerie",
+    },
+    {
+        "canonical": "Farine",
+        "synonyms": ["farine", "farine de blé", "farine complète"],
+        "category": "Épicerie",
+    },
+    {
+        "canonical": "Huile d'olive",
+        "synonyms": ["huile d'olive", "huile d olive", "huile olive"],
+        "category": "Épicerie",
+    },
+    {
+        "canonical": "Lait de coco",
+        "synonyms": ["lait de coco", "lait coco", "crème de coco"],
+        "category": "Épicerie",
+    },
+    {
+        "canonical": "Pois chiches",
+        "synonyms": ["pois chiche", "pois chiches", "pois chiche en boîte"],
+        "category": "Épicerie",
+    },
+    {
+        "canonical": "Sel",
+        "synonyms": ["sel", "sel fin", "gros sel"],
+        "category": "Épices",
+    },
+    {
+        "canonical": "Poivre",
+        "synonyms": ["poivre", "poivre noir", "poivre moulu"],
+        "category": "Épices",
+    },
+    {
+        "canonical": "Curry",
+        "synonyms": ["curry", "poudre de curry", "pâte de curry"],
+        "category": "Épices",
+    },
+    {
+        "canonical": "Sucre",
+        "synonyms": ["sucre", "sucre en poudre", "sucre blanc"],
+        "category": "Pâtisserie",
+    },
+    {
+        "canonical": "Chocolat noir",
+        "synonyms": ["chocolat noir", "chocolat pâtissier", "chocolat de cuisson"],
+        "category": "Pâtisserie",
+    },
+    {
+        "canonical": "Petits pois surgelés",
+        "synonyms": ["petits pois surgelés", "petit pois surgelé"],
+        "category": "Surgelés",
+    },
+    {
+        "canonical": "Eau pétillante",
+        "synonyms": ["eau pétillante", "eau gazeuse"],
+        "category": "Boissons",
+    },
+]
+
+DEFAULT_CATEGORY = "Divers"
+
+CATEGORY_ORDER = [
+    "Fruits et légumes","Viandes, poissons, œufs","Crèmerie",
+    "Pains et pâtisseries","Rayon frais",
+    "Épicerie salée","Épicerie sucrée","Condiments et sauces",
+    "Boissons non alcoolisées","Alcools et cave","Surgelés","Divers"]
+
+def _fold_text(text: str) -> str:
+    """Normalise un texte pour la comparaison : minuscules, sans accents, espaces compactés."""
+    text = unicodedata.normalize("NFKD", text.strip().lower())
+    text = "".join(ch for ch in text if not unicodedata.combining(ch))
+    return re.sub(r"\s+", " ", text)
+
+
+def _build_product_index(products) -> dict[str, dict]:
+    """Construit l'index {synonyme normalisé: fiche produit complète} à partir d'une liste de produits."""
+    index: dict[str, dict] = {}
+    for product in products:
+        index[_fold_text(product["canonical"])] = product
+        for synonym in product.get("synonyms", []):
+            index[_fold_text(synonym)] = product
+    return index
+
+
+def find_product(raw_name: str) -> dict | None:
+    """
+    Cherche, dans la table `products` (Supabase), le produit correspondant
+    exactement à `raw_name` — que ce soit son nom canonique ou l'un de ses
+    synonymes (comparaison insensible à la casse/aux accents).
+
+    Retourne la fiche complète ({id, canonical, category, synonyms}), ou
+    None si ce nom n'est reconnu par aucun produit connu.
+    """
+    import db  # import différé : db.py importe déjà common au niveau module,
+    # un import en tête de ce fichier créerait une dépendance circulaire.
+    index = _build_product_index(db.get_all_products())
+    return index.get(_fold_text(raw_name))
+
+
+def is_unclassified(product: dict | None) -> bool:
+    """Vrai si le produit n'existe pas encore, ou existe mais n'a pas de rayon assigné."""
+    return product is None or not product.get("category")
+
+
+def match_product(raw_name: str) -> tuple[str, str]:
+    """
+    Fait correspondre un nom de produit libre (tapé dans le formulaire) à
+    une fiche de la table `products` (sur Supabase) via ses synonymes.
+
+    Retourne (nom_canonique, rayon). Si le produit n'est pas reconnu, ou
+    reconnu mais pas encore classé, il est rangé dans DEFAULT_CATEGORY en
+    attendant — ce n'est jamais bloquant pour générer la liste de courses.
+    """
+    product = find_product(raw_name)
+    if product:
+        return product["canonical"], product["category"] or DEFAULT_CATEGORY
+    return raw_name.strip().capitalize(), DEFAULT_CATEGORY
+
+
+def _ordered_categories(present: set) -> list[str]:
+    """Ordonne les rayons présents : d'abord CATEGORY_ORDER, puis les rayons
+    ajoutés à PRODUCTS mais absents de cette liste (ordre alphabétique),
+    Divers toujours en dernier."""
+    ordered = [c for c in CATEGORY_ORDER if c in present and c != DEFAULT_CATEGORY]
+    extra = sorted(c for c in present if c not in CATEGORY_ORDER and c != DEFAULT_CATEGORY)
+    ordered += extra
+    if DEFAULT_CATEGORY in present:
+        ordered.append(DEFAULT_CATEGORY)
+    return ordered
+
+
+# ---------------------------------------------------------------------------
+# Structures de données
+# ---------------------------------------------------------------------------
+
+@dataclass
+class RecipeChoice:
+    name: str
+    people: int
+
+
+@dataclass
+class ShoppingList:
+    items: dict = field(default_factory=lambda: defaultdict(Fraction))
+    categories: dict = field(default_factory=dict)  # nom canonique (minuscule) -> rayon
+
+    def add(self, name: str, quantity, unit: str) -> None:
+        quantity, unit = normalize_unit(quantity, unit)
+        canonical_name, category = match_product(name)
+        key = (canonical_name.lower(), unit)
+        self.items[key] += quantity
+        self.categories[key[0]] = category
+
+    def as_grouped_lines(self) -> dict:
+        """Retourne un dict {catégorie: [lignes formatées]}."""
+        grouped = defaultdict(list)
+
+        for (name, unit), qty in sorted(self.items.items()):
+            display_qty = qty
+            display_unit = unit
+
+            if unit == "g" and qty >= 1000:
+                display_qty = qty / 1000
+                display_unit = "kg"
+            elif unit == "ml" and qty >= 1000:
+                display_qty = qty / 1000
+                display_unit = "l"
+
+            qty_str = format_quantity(display_qty)
+            label = name.capitalize()
+
+            if display_unit and display_unit != "unité":
+                text = f"{qty_str} {display_unit} de {label}"
+            else:
+                text = f"{qty_str} x {label}"
+
+            category = self.categories.get(name, DEFAULT_CATEGORY)
+            grouped[category].append(text)
+
+        return grouped
+
+
+def format_quantity(qty: Fraction) -> str:
+    """Affiche une fraction sous forme lisible (entier ou décimal court)."""
+    if qty.denominator == 1:
+        return str(qty.numerator)
+    value = float(qty)
+    rounded = round(value, 2)
+    if rounded == int(rounded):
+        return str(int(rounded))
+    return str(rounded)
+
+
+def scaled_ingredient_sections(recipe: dict, people: int) -> dict[str, list[str]]:
+    """
+    Ingrédients d'une recette, mis à l'échelle pour `people` personnes et
+    formatés en lignes lisibles ({section: ["500 g de Courgette", ...]}) —
+    même logique de mise à l'échelle que la liste de courses et le PDF,
+    factorisée ici pour l'affichage d'une recette dans l'app (page « Mes
+    listes »).
+    """
+    base = recipe["portions_base"] or 1
+    ratio = Fraction(int(people), base)
+    sections: dict[str, list[str]] = {}
+    for section_name, rows in recipe["ingredients"].items():
+        lines = []
+        for ingredient_name, qty, unit in rows:
+            scaled = Fraction(str(qty)).limit_denominator(100) * ratio
+            qty_str = format_quantity(scaled)
+            label = ingredient_name.capitalize()
+            if unit and unit != "unité":
+                lines.append(f"{qty_str} {unit} de {label}")
+            else:
+                lines.append(f"{qty_str} x {label}")
+        sections[section_name] = lines
+    return sections
+
+
+# ---------------------------------------------------------------------------
+# Images des recettes (photo stockée en base sinon image générée en mémoire)
+# ---------------------------------------------------------------------------
+
+# Décoder une photo (rotation EXIF, conversion RGB) coûte du CPU à chaque
+# appel, mais cette fonction retourne un objet image PIL — un type d'objet
+# fragile à mettre en cache directement avec @st.cache_data (le cache doit
+# le sérialiser/copier à chaque lecture, ce qui peut échouer selon les
+# versions de Streamlit/Pillow). On ne la met donc PAS en cache elle-même ;
+# c'est plutôt `_cached_card_data_uri` ci-dessous (qui ne manipule que des
+# str/bytes, sans risque) qui absorbe tout le bénéfice de la mise en cache.
+def get_recipe_image(name: str, image_bytes: bytes | None) -> Image.Image:
+    if image_bytes:
+        try:
+            img = Image.open(io.BytesIO(image_bytes))
+            # Beaucoup de photos (notamment prises au smartphone) stockent leur
+            # orientation réelle dans les métadonnées EXIF plutôt que dans les
+            # pixels eux-mêmes : sans ce correctif, une photo prise en portrait
+            # peut s'afficher "à plat" en paysage. exif_transpose() applique la
+            # rotation/le miroir indiqués par l'EXIF puis supprime cette
+            # métadonnée (devenue inutile) du résultat.
+            img = ImageOps.exif_transpose(img)
+            return img.convert("RGB")
+        except Exception:
+            pass
+    return generate_placeholder_image(name)
+
+
+def prepare_image_for_storage(
+    image_bytes: bytes,
+    max_dimension: int = 1600,
+    quality: int = 85,
+) -> tuple[bytes, str]:
+    """
+    Prépare une photo pour l'enregistrement en base : applique l'orientation
+    EXIF, réduit l'image si elle dépasse `max_dimension` px de large ou de
+    haut (proportions conservées), puis la réencode en JPEG compressé.
+
+    Les photos prises directement au smartphone pèsent souvent plusieurs Mo
+    et dépassent largement la définition utile pour un affichage à l'écran
+    ou une impression A4 — les stocker telles quelles alourdit inutilement
+    la base de données et ralentit le chargement des pages. À appeler avant
+    tout enregistrement d'une photo de recette.
+    """
+    img = Image.open(io.BytesIO(image_bytes))
+    img = ImageOps.exif_transpose(img)
+    img = img.convert("RGB")
+    img.thumbnail((max_dimension, max_dimension), Image.LANCZOS)
+
+    buffer = io.BytesIO()
+    img.save(buffer, format="JPEG", quality=quality, optimize=True)
+    return buffer.getvalue(), "image/jpeg"
+
+
+def fit_image_to_canvas(
+    img: Image.Image,
+    size: tuple[int, int] = (400, 260),
+    background: tuple[int, int, int] = (238, 231, 218),
+) -> Image.Image:
+    """
+    Cale une image dans un cadre de dimensions `size` fixes, SANS la
+    recadrer ni changer son orientation (une photo portrait reste
+    portrait, une photo paysage reste paysage) : l'image est réduite pour
+    tenir entièrement dans le cadre, puis centrée sur un fond uni qui
+    comble l'espace restant (bordure/marge). Toutes les vignettes ainsi
+    produites ont exactement les mêmes dimensions, quelle que soit
+    l'orientation ou le ratio de la photo d'origine.
+    """
+    canvas = Image.new("RGB", size, color=background)
+    thumb = img.copy()
+    thumb.thumbnail(size, Image.LANCZOS)
+    x = (size[0] - thumb.width) // 2
+    y = (size[1] - thumb.height) // 2
+    canvas.paste(thumb, (x, y))
+    return canvas
+
+
+def image_to_data_uri(img: Image.Image, format: str = "JPEG", quality: int = 85) -> str:
+    """Encode une image PIL en data URI base64 pour l'intégrer dans du HTML (ex: st.markdown)."""
+    buffer = io.BytesIO()
+    img.save(buffer, format=format, quality=quality)
+    encoded = base64.b64encode(buffer.getvalue()).decode("ascii")
+    mime = "image/jpeg" if format.upper() == "JPEG" else f"image/{format.lower()}"
+    return f"data:{mime};base64,{encoded}"
+
+
+def round_image_corners(
+    img: Image.Image,
+    radius: int,
+    background: tuple[int, int, int] = (255, 255, 255),
+) -> Image.Image:
+    """
+    Renvoie une copie de `img` avec les 4 coins arrondis, comblés par
+    `background` (utilisé pour les photos du carnet PDF : le format JPEG ne
+    supportant pas la transparence, on "peint" directement la couleur de
+    page dans les coins découpés plutôt que de vraiment les rendre
+    transparents).
+    """
+    img = img.convert("RGB")
+    mask = Image.new("L", img.size, 0)
+    ImageDraw.Draw(mask).rounded_rectangle(
+        [0, 0, img.size[0] - 1, img.size[1] - 1], radius=radius, fill=255
+    )
+    canvas = Image.new("RGB", img.size, background)
+    canvas.paste(img, (0, 0), mask)
+    return canvas
+
+
+# Dimensions fixes des vignettes recette, utilisées partout où une photo de
+# recette est affichée (page d'accueil, générateur de liste, ...), pour un
+# rendu homogène sur toute l'application.
+RECIPE_CARD_IMAGE_SIZE = (400, 260)
+
+# Fond orange uni de l'étiquette de nom superposée sur la photo.
+RECIPE_CARD_LABEL_COLOR = "#ffbd3a"
+
+
+@st.cache_data(show_spinner=False, max_entries=200, ttl=3600)
+def _cached_card_data_uri(name: str, image_bytes: bytes | None, size: tuple[int, int]) -> str:
+    """
+    Calcule (et met en cache) la vignette encodée en data URI pour une
+    recette donnée. Ce pipeline (décodage + redimensionnement + centrage
+    sur un fond uni + réencodage JPEG + base64) est le poste le plus
+    coûteux du rendu des cartes recette ; sans cache il tournait pour
+    CHAQUE recette affichée à CHAQUE rechargement de page (donc à chaque
+    case cochée / nombre de personnes modifié sur la page « Générer ma
+    liste »). Les paramètres (str, bytes, tuple) et le retour (str) sont
+    tous des types simples et sûrs à mettre en cache.
+    """
+    img = get_recipe_image(name, image_bytes)
+    canvas = fit_image_to_canvas(img, size=size)
+    return image_to_data_uri(canvas)
+
+
+def render_recipe_image_card(name: str, image_bytes: bytes | None, size: tuple[int, int] = RECIPE_CARD_IMAGE_SIZE) -> None:
+    """
+    Affiche la photo d'une recette dans un cadre de dimensions fixes
+    (orientation d'origine conservée — portrait reste portrait, paysage
+    reste paysage —, une marge est ajoutée si besoin pour uniformiser
+    toutes les vignettes), avec le nom de la recette en étiquette orange
+    superposée en bas de la photo.
+
+    Prend les octets bruts de la photo (colonne `image` en base, ou None) —
+    pas une image déjà décodée — afin que le calcul de la vignette
+    puisse être mis en cache par Streamlit.
+    """
+    data_uri = _cached_card_data_uri(name, image_bytes, size)
+    st.markdown(
+        f"""
+        <div style="position:relative; width:100%; margin-bottom:0.6em;
+                    border-radius:10px; overflow:hidden; border:1px solid #ddd;">
+          <img src="{data_uri}" style="width:100%; height:auto; display:block;padding-bottom:3em;" />
+          <div style="position:absolute; bottom:0; left:0; right:0;
+                      background:{RECIPE_CARD_LABEL_COLOR};
+                      color:white; padding:0.3em 0.7em; font-weight:600;
+                      font-size:1.05em; line-height:1.2; height:3em">
+            {name}
+          </div>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+
+# Taille de police fixe utilisée pour le calcul de la mise en page du texte.
+# On ne se fie jamais à un éventuel attribut `.size` de l'objet police
+# (absent sur la police bitmap par défaut de Pillow), afin que le rendu
+# fonctionne quel que soit l'OS et même si aucune police TrueType n'est
+# trouvée sur la machine.
+_PLACEHOLDER_FONT_SIZE = 42
+
+# Quelques emplacements courants de polices "grasses" selon l'OS. On essaie
+# chacun dans l'ordre ; si aucun ne fonctionne, on bascule sur la police
+# par défaut intégrée à Pillow (toujours disponible, sans dépendance système).
+_FONT_CANDIDATES = [
+    "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf",   # Linux (Debian/Ubuntu)
+    "/usr/share/fonts/dejavu/DejaVuSans-Bold.ttf",             # Linux (autres distros)
+    "/System/Library/Fonts/Supplemental/Arial Bold.ttf",       # macOS
+    "/Library/Fonts/Arial Bold.ttf",                           # macOS
+    "C:\\Windows\\Fonts\\arialbd.ttf",                          # Windows
+    "C:\\Windows\\Fonts\\seguisb.ttf",                          # Windows (secours)
+]
+
+
+def _load_placeholder_font(size: int = _PLACEHOLDER_FONT_SIZE):
+    for path in _FONT_CANDIDATES:
+        try:
+            return ImageFont.truetype(path, size)
+        except OSError:
+            continue
+    # Aucune police TrueType trouvée : on utilise la police par défaut de
+    # Pillow, en lui demandant si possible la même taille (Pillow >= 9.2).
+    try:
+        return ImageFont.load_default(size=size)
+    except TypeError:
+        # Anciennes versions de Pillow : load_default() n'accepte pas `size`.
+        return ImageFont.load_default()
+
+
+# Comme pour get_recipe_image, on ne met pas en cache cette fonction
+# elle-même (elle retourne un objet image PIL) : le bénéfice de cache est
+# capté en amont par `_cached_card_data_uri`, sans le risque de mettre en
+# cache un objet PIL directement.
+def generate_placeholder_image(text: str, size=(800, 500)) -> Image.Image:
+    """Crée une image simple (fond coloré + nom de la recette centré)."""
+    palette = [
+        (222, 184, 135), (176, 196, 222), (255, 200, 124),
+        (188, 220, 180), (240, 180, 180), (200, 200, 240),
+    ]
+    color = palette[abs(hash(text)) % len(palette)]
+
+    img = Image.new("RGB", size, color=color)
+    draw = ImageDraw.Draw(img)
+
+    font = _load_placeholder_font()
+
+    words = text.split() or [text]
+    lines, current = [], ""
+    for word in words:
+        test = f"{current} {word}".strip()
+        try:
+            test_width = draw.textlength(test, font=font)
+        except Exception:
+            test_width = len(test) * (_PLACEHOLDER_FONT_SIZE * 0.55)
+        if test_width > size[0] - 80 and current:
+            lines.append(current)
+            current = word
         else:
-            for rid in sorted(cart_ids, key=lambda i: recipes_by_id[i][0].lower()):
-                name, recipe = recipes_by_id[rid]
-                name_col, qty_col, remove_col = st.columns([3, 2, 1])
-                name_col.markdown(f"**{name}**")
-                qty_col.number_input(
-                    "Personnes",
-                    min_value=1,
-                    value=_people_for(rid, recipe["portions_base"]),
-                    step=1,
-                    key=_people_key(rid, "cart"),
-                    on_change=_sync_people,
-                    args=(rid, "cart"),
-                    label_visibility="collapsed",
-                )
-                if remove_col.button("✕", key=f"cart_popover_remove_{rid}", help="Retirer du panier"):
-                    cart_ids.discard(rid)
-                    st.rerun()
-            st.divider()
-            if st.button("🗑️ Vider le panier", key="cart_clear_all", use_container_width=True):
-                cart_ids.clear()
-                st.rerun()
+            current = test
+    if current:
+        lines.append(current)
+    if not lines:
+        lines = [text]
 
-            st.divider()
-            st.text_input(
-                "📝 Référence (optionnel)",
-                placeholder="ex. : Repas de la semaine du 10 mai",
-                value=_current_reference(),
-                key=REFERENCE_CART_KEY,
-                on_change=_sync_reference,
-                args=(REFERENCE_CART_KEY, REFERENCE_MAIN_KEY),
-            )
-            if st.button(
-                "🧾 Générer la liste de courses",
-                key="cart_generate",
-                type="primary",
-                use_container_width=True,
-            ):
-                _generate_shopping_list()
-                st.rerun()
+    line_height = _PLACEHOLDER_FONT_SIZE + 10
+    total_height = line_height * len(lines)
+    y = (size[1] - total_height) / 2
 
-all_tags = db.get_all_tags()
-all_authors = db.get_all_authors()
+    for line in lines:
+        try:
+            w = draw.textlength(line, font=font)
+        except Exception:
+            w = len(line) * (_PLACEHOLDER_FONT_SIZE * 0.55)
+        x = (size[0] - w) / 2
+        draw.text((x, y), line, fill=(60, 40, 20), font=font)
+        y += line_height
 
-search_query = st.text_input(
-    "🔎 Rechercher une recette (titre ou ingrédient)",
-    placeholder="ex. : poulet, courgette, curry...",
-).strip().lower()
+    return img
 
-filter_cols = st.columns(2)
-tag_filter = []
-if all_tags:
-    tag_filter = filter_cols[0].multiselect(
-        "🏷️ Filtrer par catégorie (optionnel)",
-        options=all_tags,
-        help="Affiche uniquement les recettes ayant au moins une des catégories sélectionnées.",
-    )
-
-author_filter = []
-if all_authors:
-    author_filter = filter_cols[1].multiselect(
-        "👤 Filtrer par auteur·rice (optionnel)",
-        options=all_authors,
-        help="Affiche uniquement les recettes ajoutées par les auteurs sélectionnés.",
-    )
-
-
-def _matches_search(recipe_name: str, recipe: dict, query: str) -> bool:
-    """Vrai si le terme recherché apparaît dans le titre OU dans le nom d'un ingrédient."""
-    if not query:
-        return True
-    if query in recipe_name.lower():
-        return True
-    for rows in recipe["ingredients"].values():
-        for ingredient_name, _qty, _unit in rows:
-            if query in ingredient_name.lower():
-                return True
-    return False
-
-
-names = list(recipes.keys())
-if search_query:
-    names = [name for name in names if _matches_search(name, recipes[name], search_query)]
-if tag_filter:
-    names = [name for name in names if set(recipes[name].get("tags", [])) & set(tag_filter)]
-if author_filter:
-    names = [name for name in names if recipes[name].get("created_by") in author_filter]
-
-if (search_query or tag_filter or author_filter) and not names:
-    st.info("Aucune recette ne correspond à ta recherche/filtre.")
 
 # ---------------------------------------------------------------------------
-# Grille de recettes responsive — cartes à largeur fixe, nombre de colonnes
-# qui s'adapte à la largeur de l'écran (façon e-shop).
+# Calcul de la liste de courses
 # ---------------------------------------------------------------------------
-# st.columns() ne permet pas nativement un vrai flux de type CSS grid : les
-# colonnes se rétrécissent mais ne repassent jamais à la ligne. On simule ça
-# en demandant à chaque fois GRID_COLUMNS colonnes (le maximum voulu sur
-# grand écran), puis en forçant en CSS ces colonnes à une largeur fixe et à
-# passer à la ligne (flex-wrap) quand elles ne tiennent plus — le
-# navigateur affiche alors automatiquement 1 carte par ligne sur mobile, 2
-# sur tablette, jusqu'à GRID_COLUMNS sur grand écran, sans aucun JS.
-GRID_COLUMNS = 4
-CARD_MIN_WIDTH_PX = 260
-CARD_MAX_WIDTH_PX = 320
 
-st.markdown(
-    f"""
-    <style>
-    .st-key-recipe_grid div[data-testid="stHorizontalBlock"] {{
-        flex-wrap: wrap;
-        row-gap: 1.5rem;
-    }}
-    .st-key-recipe_grid div[data-testid="stHorizontalBlock"] > div[data-testid="column"] {{
-        flex: 1 1 {CARD_MIN_WIDTH_PX}px;
-        min-width: {CARD_MIN_WIDTH_PX}px;
-        max-width: {CARD_MAX_WIDTH_PX}px;
-        width: {CARD_MIN_WIDTH_PX}px;
-    }}
-    </style>
-    """,
-    unsafe_allow_html=True,
-)
-
-with st.container(key="recipe_grid"):
-    columns = []
-    for i, name in enumerate(names):
-        if i % GRID_COLUMNS == 0:
-            columns = st.columns(GRID_COLUMNS, gap="medium")
-        col = columns[i % GRID_COLUMNS]
-
-        recipe = recipes[name]
+def build_shopping_list(choices: list[RecipeChoice], recipes: dict) -> ShoppingList:
+    shopping = ShoppingList()
+    for choice in choices:
+        recipe = recipes[choice.name]
         base = recipe["portions_base"]
+        ratio = Fraction(choice.people, base)
+        for section in recipe["ingredients"].values():
+            for ingredient_name, qty, unit in section:
+                scaled = Fraction(str(qty)).limit_denominator(100) * ratio
+                shopping.add(ingredient_name, scaled, unit)
+    return shopping
 
-        with col:
-            with st.container(border=True):
-                common.render_recipe_image_card(name, recipe["image"])
 
-                tags_html = "".join(
-                    f'<span style="background:#f0f2f6; color:#31333F; border-radius:4px; '
-                    f'padding:0.1em 0.45em; margin:0 0.3em 0.3em 0; font-size:0.82em; '
-                    f'font-family:monospace; display:inline-block;">{html.escape(t)}</span>'
-                    for t in recipe.get("tags", [])
+def build_shopping_text(title: str, grouped: dict) -> str:
+    lines = [title, "=" * len(title), ""]
+    for category in _ordered_categories(set(grouped.keys())):
+        lines.append(f"=== {category.upper()} ===")
+        for item in grouped[category]:
+            lines.append(f"– {item}")
+        lines.append("")
+    return "\n".join(lines)
+
+
+# ---------------------------------------------------------------------------
+# Export vers l'app Notes de macOS (via AppleScript / osascript)
+# ---------------------------------------------------------------------------
+#
+# Ne fonctionne que si le serveur Streamlit tourne LUI-MÊME sur un Mac (ce
+# qui est le cas d'un usage local classique : `streamlit run app.py` sur
+# votre propre machine). Sur un serveur distant ou un autre OS, cette
+# fonction retourne simplement False sans rien faire.
+
+def export_to_macos_notes(title: str, grouped: dict) -> bool:
+    if platform.system() != "Darwin":
+        return False
+
+    body_html = f"<h1>{_escape_applescript(title)}</h1>"
+    for category in _ordered_categories(set(grouped.keys())):
+        body_html += f"<h2>{_escape_applescript(category)}</h2><ul>"
+        for item in grouped[category]:
+            body_html += f"<li>{_escape_applescript(item)}</li>"
+        body_html += "</ul>"
+
+    applescript = f'''
+    tell application "Notes"
+        tell account "iCloud"
+            make new note at folder "Notes" with properties {{body:"{body_html}"}}
+        end tell
+        activate
+    end tell
+    '''
+
+    try:
+        subprocess.run(
+            ["osascript", "-e", applescript],
+            check=True,
+            capture_output=True,
+            text=True,
+        )
+        return True
+    except (subprocess.CalledProcessError, FileNotFoundError):
+        return False
+
+
+def _escape_applescript(text: str) -> str:
+    return text.replace("\\", "\\\\").replace('"', '\\"')
+
+
+
+# ---------------------------------------------------------------------------
+# Génération du carnet de recettes en PDF (en mémoire)
+# ---------------------------------------------------------------------------
+#
+# Palette reprise de l'identité visuelle de l'app (même orange que les
+# étiquettes de vignette recette, même beige que le fond des photos), pour
+# que le PDF ait l'air de sortir du même site plutôt que d'un générateur
+# générique.
+
+# ---------------------------------------------------------------------------
+# Charte graphique du PDF — alignée sur le logo CookPotes.
+# ---------------------------------------------------------------------------
+PDF_RED_HEX = "#ff5951"
+PDF_TEAL_HEX = "#3bb6b0"
+PDF_YELLOW_HEX = "#ffbd3a"
+PDF_NAVY_HEX = "#24324f"
+
+PDF_RED = colors.HexColor(PDF_RED_HEX)
+PDF_TEAL = colors.HexColor(PDF_TEAL_HEX)
+PDF_YELLOW = colors.HexColor(PDF_YELLOW_HEX)
+PDF_NAVY = colors.HexColor(PDF_NAVY_HEX)
+
+PDF_INK = PDF_NAVY                                # texte principal
+PDF_GREY = colors.HexColor("#7C879C")             # texte secondaire (gris-bleu, cohérent avec le navy)
+PDF_LINE = colors.HexColor("#E7EAF1")             # filets/grilles discrets
+
+PDF_RED_SOFT = colors.HexColor("#FFEDEC")         # fond très léger rouge (zébrage tableau ingrédients)
+PDF_TEAL_SOFT = colors.HexColor("#E9F7F6")        # fond très léger teal (badges tags)
+PDF_NAVY_SOFT = colors.HexColor("#EEF1F6")        # fond très léger navy (carte d'en-tête, sommaire)
+
+# Chaque recette tient normalement sur une seule page (marges réduites,
+# typographie compacte). Une recette avec beaucoup d'ingrédients ou
+# d'étapes déborde naturellement sur la page suivante — Reportlab gère ça
+# tout seul tant qu'on ne force pas de saut de page au milieu du contenu ;
+# le PageBreak() explicite n'intervient qu'APRÈS chaque recette.
+PDF_MARGIN = 1.6 * cm
+
+
+def _pdf_footer(canvas, doc) -> None:
+    """Pied de page sur chaque page : liseré tricolore (rouge-teal-jaune) + nom de l'app + numéro de page."""
+    canvas.saveState()
+    width, _ = A4
+    usable = width - 2 * PDF_MARGIN
+    y = 1.25 * cm
+    band_colors = (PDF_RED, PDF_TEAL, PDF_YELLOW)
+    seg_width = usable / len(band_colors)
+    for i, band_color in enumerate(band_colors):
+        canvas.setFillColor(band_color)
+        canvas.rect(PDF_MARGIN + i * seg_width, y, seg_width, 2.2, stroke=0, fill=1)
+    canvas.setFont("Helvetica-Bold", 8)
+    canvas.setFillColor(PDF_NAVY)
+    canvas.drawString(PDF_MARGIN, 0.75 * cm, "CookPotes")
+    canvas.setFont("Helvetica", 8)
+    canvas.setFillColor(PDF_GREY)
+    canvas.drawRightString(width - PDF_MARGIN, 0.75 * cm, f"Page {doc.page}")
+    canvas.restoreState()
+
+
+def _underline_heading(text_str: str, style: ParagraphStyle, width: float, accent: colors.Color) -> Table:
+    """Titre de section avec un filet coloré en-dessous, sur toute la largeur donnée."""
+    t = Table([[Paragraph(text_str, style)]], colWidths=[width])
+    t.setStyle(TableStyle([
+        ("LINEBELOW", (0, 0), (-1, -1), 1.6, accent),
+        ("TOPPADDING", (0, 0), (-1, -1), 0),
+        ("BOTTOMPADDING", (0, 0), (-1, -1), 4),
+        ("LEFTPADDING", (0, 0), (-1, -1), 0),
+        ("RIGHTPADDING", (0, 0), (-1, -1), 0),
+    ]))
+    return t
+
+
+def _chip(text: str, bg_hex: str, text_hex: str = "#FFFFFF") -> Table:
+    """Petit badge arrondi façon appli mobile (nombre de personnes, temps, tag...)."""
+    style = ParagraphStyle(
+        "Chip", fontName="Helvetica-Bold", fontSize=8.5, leading=10,
+        textColor=colors.HexColor(text_hex), alignment=TA_CENTER,
+    )
+    t = Table([[Paragraph(html.escape(text), style)]])
+    t.setStyle(TableStyle([
+        ("BACKGROUND", (0, 0), (-1, -1), colors.HexColor(bg_hex)),
+        ("ROUNDEDCORNERS", [8, 8, 8, 8]),
+        ("LEFTPADDING", (0, 0), (-1, -1), 9),
+        ("RIGHTPADDING", (0, 0), (-1, -1), 9),
+        ("TOPPADDING", (0, 0), (-1, -1), 4),
+        ("BOTTOMPADDING", (0, 0), (-1, -1), 4),
+    ]))
+    return t
+
+
+def _chip_row(chips: list[Table], gap_pt: float = 6) -> Table:
+    """Aligne plusieurs badges (voir `_chip`) sur une ligne, avec un petit espace entre eux."""
+    row = Table([chips])
+    cmds = [
+        ("LEFTPADDING", (0, 0), (-1, -1), 0),
+        ("TOPPADDING", (0, 0), (-1, -1), 0),
+        ("BOTTOMPADDING", (0, 0), (-1, -1), 0),
+        ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+        ("ALIGN", (0, 0), (-1, -1), "LEFT"),
+    ]
+    last = len(chips) - 1
+    for i in range(len(chips)):
+        cmds.append(("RIGHTPADDING", (i, 0), (i, 0), 0 if i == last else gap_pt))
+    row.setStyle(TableStyle(cmds))
+    return row
+
+
+def _accent_stripe(width_cm: float = 3.6, height_pt: float = 5) -> Table:
+    """Petit bandeau tricolore décoratif (écho des pastilles du logo), centré."""
+    seg_w = width_cm * cm / 3
+    t = Table([["", "", ""]], colWidths=[seg_w] * 3, rowHeights=[height_pt])
+    t.setStyle(TableStyle([
+        ("BACKGROUND", (0, 0), (0, 0), PDF_RED),
+        ("BACKGROUND", (1, 0), (1, 0), PDF_TEAL),
+        ("BACKGROUND", (2, 0), (2, 0), PDF_YELLOW),
+        ("ROUNDEDCORNERS", [height_pt, height_pt, height_pt, height_pt]),
+        ("TOPPADDING", (0, 0), (-1, -1), 0),
+        ("BOTTOMPADDING", (0, 0), (-1, -1), 0),
+        ("LEFTPADDING", (0, 0), (-1, -1), 1),
+        ("RIGHTPADDING", (0, 0), (-1, -1), 1),
+    ]))
+    t.hAlign = "CENTER"
+    return t
+
+
+def build_recipe_booklet_pdf(
+    choices: list[RecipeChoice],
+    recipes: dict,
+    title: str = "Carnet de recettes de la semaine",
+) -> bytes:
+    buffer = io.BytesIO()
+    doc = SimpleDocTemplate(
+        buffer, pagesize=A4,
+        topMargin=PDF_MARGIN, bottomMargin=1.7 * cm,
+        leftMargin=PDF_MARGIN, rightMargin=PDF_MARGIN,
+    )
+    styles = getSampleStyleSheet()
+
+    title_style = ParagraphStyle(
+        "RecipeTitle", parent=styles["Title"], fontName="Helvetica-Bold",
+        fontSize=20, leading=23, textColor=PDF_NAVY, alignment=0,
+        spaceAfter=0,
+    )
+    section_style = ParagraphStyle(
+        "Section", parent=styles["Heading2"], fontName="Helvetica-Bold",
+        fontSize=13, spaceBefore=0, spaceAfter=0, leading=16,
+    )
+    section_style_red = ParagraphStyle("SectionRed", parent=section_style, textColor=PDF_RED)
+    section_style_teal = ParagraphStyle("SectionTeal", parent=section_style, textColor=PDF_TEAL)
+    subsection_style = ParagraphStyle(
+        "SubSection", parent=styles["Heading3"], fontName="Helvetica-Bold",
+        fontSize=10, spaceBefore=6, spaceAfter=3, textColor=PDF_NAVY,
+    )
+    body_style = ParagraphStyle(
+        "Body", parent=styles["Normal"], fontSize=9.5, leading=13.5, textColor=PDF_INK,
+    )
+    cover_title_style = ParagraphStyle(
+        "CoverTitle", parent=styles["Title"], fontName="Helvetica-Bold",
+        fontSize=27, alignment=TA_CENTER, textColor=PDF_NAVY,
+    )
+    cover_item_style = ParagraphStyle(
+        "CoverItem", parent=styles["Normal"], fontName="Helvetica-Bold",
+        fontSize=12, leading=15, textColor=PDF_NAVY,
+    )
+
+    CONTENT_WIDTH = A4[0] - 2 * PDF_MARGIN
+
+    story = []
+
+    # --- Page de couverture ---
+    try:
+        logo = RLImage("images/CookPotes_logo_with_subtitle.png", width=6.5 * cm, height=6.5 * cm)
+        logo.hAlign = "CENTER"
+        story.append(Spacer(1, 1.1 * cm))
+        story.append(logo)
+        story.append(Spacer(1, 0.6 * cm))
+    except Exception:
+        story.append(Spacer(1, 3.5 * cm))
+
+    story.append(Paragraph(html.escape(title), cover_title_style))
+    story.append(Spacer(1, 8))
+    story.append(_accent_stripe())
+    story.append(Spacer(1, 1.4 * cm))
+
+    CHIP_COL_WIDTH = 3.4 * cm
+    for c in choices:
+        row_table = Table(
+            [[Paragraph(html.escape(c.name), cover_item_style), _chip(f"{c.people} personne(s)", PDF_RED_HEX)]],
+            colWidths=[CONTENT_WIDTH - CHIP_COL_WIDTH, CHIP_COL_WIDTH],
+        )
+        row_table.setStyle(TableStyle([
+            ("BACKGROUND", (0, 0), (-1, -1), PDF_NAVY_SOFT),
+            ("ROUNDEDCORNERS", [10, 10, 10, 10]),
+            ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+            ("ALIGN", (1, 0), (1, 0), "RIGHT"),
+            ("LEFTPADDING", (0, 0), (0, 0), 14),
+            ("RIGHTPADDING", (1, 0), (1, 0), 14),
+            ("TOPPADDING", (0, 0), (-1, -1), 9),
+            ("BOTTOMPADDING", (0, 0), (-1, -1), 9),
+        ]))
+        story.append(row_table)
+        story.append(Spacer(1, 9))
+    story.append(PageBreak())
+
+    # --- Une page par recette ---
+    # Reportlab laisse le contenu s'écouler naturellement : si une recette a
+    # beaucoup d'ingrédients ou d'étapes, la fin déborde toute seule sur une
+    # page supplémentaire avant le PageBreak() explicite de fin de recette —
+    # pas besoin de forcer quoi que ce soit pour ça. Le travail porte donc
+    # sur la densité de la mise en page pour qu'une recette "normale" tienne
+    # confortablement sur une seule page.
+    PHOTO_HEIGHT_CM = 5
+    PHOTO_WIDTH_CM = 6
+    _dpi = 150
+    _photo_canvas_size = (
+        int(PHOTO_WIDTH_CM / 2.54 * _dpi),
+        int(PHOTO_HEIGHT_CM / 2.54 * _dpi),
+    )
+    LEFT_COL_WIDTH = 6.2 * cm
+    GUTTER_PT = 12
+    RIGHT_COL_WIDTH = CONTENT_WIDTH - LEFT_COL_WIDTH - (GUTTER_PT / 72 * 2.54 * cm / 2.54)
+
+    for choice in choices:
+        recipe = recipes[choice.name]
+        base = recipe["portions_base"]
+        ratio = Fraction(choice.people, base)
+
+        pil_image = get_recipe_image(choice.name, recipe["image"])
+        canvas_image = fit_image_to_canvas(pil_image, size=_photo_canvas_size, background=(255, 255, 255))
+        canvas_image = round_image_corners(canvas_image, radius=int(min(_photo_canvas_size) * 0.07), background=(255, 255, 255))
+        img_buffer = io.BytesIO()
+        canvas_image.save(img_buffer, format="JPEG", quality=90)
+        img_buffer.seek(0)
+        rl_image = RLImage(img_buffer, width=PHOTO_WIDTH_CM * cm, height=PHOTO_HEIGHT_CM * cm)
+        rl_image.hAlign = "CENTER"
+
+        # --- Carte d'en-tête : titre + badges (personnes/temps) ---
+        header_flow = [Paragraph(html.escape(choice.name), title_style), Spacer(1, 7)]
+
+        prep = format_time_minutes(recipe.get("prep_time_minutes"))
+        cook = format_time_minutes(recipe.get("cook_time_minutes"))
+        info_chips = [_chip(f"{choice.people} personne(s)", PDF_RED_HEX)]
+        if prep:
+            info_chips.append(_chip(f"Préparation {prep}", PDF_TEAL_HEX))
+        if cook:
+            info_chips.append(_chip(f"Cuisson {cook}", PDF_YELLOW_HEX, text_hex=PDF_NAVY_HEX))
+        header_flow.append(_chip_row(info_chips))
+
+        header_table = Table([[header_flow]], colWidths=[CONTENT_WIDTH])
+        header_table.setStyle(TableStyle([
+            ("BACKGROUND", (0, 0), (-1, -1), PDF_NAVY_SOFT),
+            ("ROUNDEDCORNERS", [14, 14, 14, 14]),
+            ("LEFTPADDING", (0, 0), (-1, -1), 14),
+            ("RIGHTPADDING", (0, 0), (-1, -1), 14),
+            ("TOPPADDING", (0, 0), (-1, -1), 12),
+            ("BOTTOMPADDING", (0, 0), (-1, -1), 12),
+        ]))
+        story.append(header_table)
+        story.append(Spacer(1, 10))
+
+        # --- Ingrédients : construits pour une largeur donnée (réutilisé
+        # pour les deux mises en page ci-dessous) ---
+        def _build_ingredients_flow(width: float) -> list:
+            flow = [_underline_heading("Ingrédients", section_style_red, width, PDF_RED)]
+            flow.append(Spacer(1, 5))
+            multi_section = len(recipe["ingredients"]) > 1
+            for section_name, ingredients in recipe["ingredients"].items():
+                if multi_section:
+                    flow.append(Paragraph(html.escape(section_name), subsection_style))
+
+                table_data = [["Qté", "Ingrédient"]]
+                for ingredient_name, qty, unit in ingredients:
+                    scaled = Fraction(str(qty)).limit_denominator(100) * ratio
+                    qty_str = format_quantity(scaled)
+                    unit_str = "" if unit == "unité" else unit
+                    table_data.append([
+                        f"{qty_str} {unit_str}".strip(),
+                        ingredient_name.capitalize(),
+                    ])
+
+                ing_table = Table(
+                    table_data,
+                    colWidths=[2.3 * cm, width - 2.3 * cm],
+                    repeatRows=1,
                 )
+                ing_table.setStyle(TableStyle([
+                    ("BACKGROUND", (0, 0), (-1, 0), PDF_RED),
+                    ("TEXTCOLOR", (0, 0), (-1, 0), colors.white),
+                    ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
+                    ("ROUNDEDCORNERS", [6, 6, 6, 6]),
+                    ("FONTSIZE", (0, 0), (-1, -1), 8.5),
+                    ("TEXTCOLOR", (0, 1), (-1, -1), PDF_INK),
+                    ("ROWBACKGROUNDS", (0, 1), (-1, -1), [colors.white, PDF_RED_SOFT]),
+                    ("LINEBELOW", (0, 0), (-1, -2), 0.4, PDF_LINE),
+                    ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+                    ("LEFTPADDING", (0, 0), (-1, -1), 6),
+                    ("RIGHTPADDING", (0, 0), (-1, -1), 6),
+                    ("TOPPADDING", (0, 0), (-1, -1), 4),
+                    ("BOTTOMPADDING", (0, 0), (-1, -1), 4),
+                ]))
+                flow.append(ing_table)
+                flow.append(Spacer(1, 6))
+            return flow
 
-                author_html = (
-                    f"👤 Ajoutée par {html.escape(recipe['created_by'])}" if recipe.get("created_by") else ""
-                )
+        # Un tableau photo+ingrédients côte à côte n'a qu'UNE seule ligne :
+        # Reportlab ne peut pas le scinder sur deux pages, il plante si le
+        # contenu est trop haut. Pour les recettes avec beaucoup
+        # d'ingrédients, on bascule donc sur une mise en page empilée
+        # (photo, puis ingrédients pleine largeur) qui, elle, se scinde
+        # naturellement sur autant de pages que nécessaire.
+        total_ingredient_rows = sum(len(rows) for rows in recipe["ingredients"].values())
+        use_side_by_side = total_ingredient_rows <= 22
 
-                meta_bits = []
-                prep = common.format_time_minutes(recipe.get("prep_time_minutes"))
-                cook = common.format_time_minutes(recipe.get("cook_time_minutes"))
-                if prep:
-                    meta_bits.append(f"⏱️ Préparation : {html.escape(prep)}<br>")
-                if cook:
-                    meta_bits.append(f"🔥 Cuisson : {html.escape(cook)}")
-                meta_html = "".join(meta_bits)
-                st.markdown(
-                    f'<div style="overflow:hidden; margin-bottom:0.9em; '
-                    f'color:rgb(120,120,120); font-size:0.85rem;">{meta_html}</div>',
-                    unsafe_allow_html=True,
-                )
+        if use_side_by_side:
+            # --- Photo (gauche) + ingrédients (droite), côte à côte ---
+            ingredients_flowables = _build_ingredients_flow(RIGHT_COL_WIDTH)
+            layout_table = Table(
+                [[rl_image, ingredients_flowables]],
+                colWidths=[LEFT_COL_WIDTH, RIGHT_COL_WIDTH],
+            )
+            layout_table.setStyle(TableStyle([
+                ("VALIGN", (0, 0), (-1, -1), "TOP"),
+                ("LEFTPADDING", (0, 0), (0, -1), 0),
+                ("RIGHTPADDING", (0, 0), (0, -1), 0),
+                ("LEFTPADDING", (1, 0), (1, -1), GUTTER_PT),
+                ("RIGHTPADDING", (1, 0), (1, -1), 0),
+                ("TOPPADDING", (0, 0), (-1, -1), 0),
+                ("BOTTOMPADDING", (0, 0), (-1, -1), 0),
+            ]))
+            story.append(layout_table)
+            story.append(Spacer(1, 12))
+        else:
+            # --- Mise en page empilée pour les grosses recettes ---
+            img_buffer.seek(0)  # rl_image a déjà consommé la lecture du buffer une première fois
+            small_image = RLImage(img_buffer, width=4.2 * cm, height=3.5 * cm)
+            small_image.hAlign = "LEFT"
+            story.append(small_image)
+            story.append(Spacer(1, 9))
+            for flowable in _build_ingredients_flow(CONTENT_WIDTH):
+                story.append(flowable)
+            story.append(Spacer(1, 5))
 
-                description_html = html.escape(recipe.get("description") or "")
-                
-                current_people = _people_for(recipe["id"], base)
-                with st.expander("📋 Voir les détails"):
-                    st.markdown(
-                        f'<div style="overflow:hidden; margin-bottom:0.15em; '
-                        f'color:rgb(120,120,120); font-size:0.85rem;">{author_html}</div>',
-                        unsafe_allow_html=True,
-                    )
-                    st.markdown(
-                        f'<div style="overflow:hidden; margin-bottom:0.4em; '
-                        f'color:rgb(120,120,120); font-size:0.85rem; line-height:1.35;"><i>{description_html}</i></div>',
-                        unsafe_allow_html=True,
-                    )                    
-                    st.markdown(
-                        f'<div style="overflow:hidden; font-size:0.85rem; margin-bottom:0.3em;">{tags_html}</div>',
-                        unsafe_allow_html=True,
-                    )
-                    if recipe["ingredients"]:
-                        meta_ingredients=[]
-                        st.markdown(
-                            f'<div style="overflow:hidden; margin-bottom:0.4em; '
-                            f'color:rgb(120,120,120); font-size:0.85rem; line-height:1.35;"><b>Ingrédients :</b></div>',
-                            unsafe_allow_html=True,
-                        )
-                        seen_ingredients = set()
-                        for section_name, rows in recipe["ingredients"].items():
-                            for ingredient_name, qty, unit in rows:
-                                key = ingredient_name.strip().lower()
-                                if key in seen_ingredients:
-                                    continue
-                                seen_ingredients.add(key)
-                                label = ingredient_name.capitalize()
-                                meta_ingredients.append(f"{label}")
-                        meta_ingredients_html = " • ".join(meta_ingredients)
-                        st.markdown(
-                            f'<div style="overflow:hidden; margin-bottom:0.4em; '
-                            f'color:rgb(120,120,120); font-size:0.85rem; line-height:1.35;">{meta_ingredients_html}</div>',
-                            unsafe_allow_html=True,
-                        )
+        # --- Étapes de préparation, sous la photo et les ingrédients ---
+        instructions = recipe.get("instructions")
+        if instructions:
+            story.append(_underline_heading("Préparation", section_style_teal, CONTENT_WIDTH, PDF_TEAL))
+            story.append(Spacer(1, 5))
+            step_items = [
+                ListItem(Paragraph(html.escape(step), body_style), leftIndent=6, spaceAfter=5)
+                for step in instructions
+            ]
+            story.append(ListFlowable(
+                step_items, bulletType="1", bulletColor=PDF_TEAL, bulletFontName="Helvetica-Bold",
+            ))
 
-                    else:
-                        st.markdown(
-                            f'<div style="overflow:hidden; margin-bottom:0.4em; '
-                            f'color:rgb(120,120,120); font-size:0.85rem; line-height:1.35;">"Aucun ingrédient renseigné pour cette recette."</div>',
-                            unsafe_allow_html=True,
-                        )
+        story.append(PageBreak())
 
-                people = st.number_input(
-                    f"Nombre de personnes",
-                    min_value=1,
-                    value=current_people,
-                    step=1,
-                    key=_people_key(recipe["id"], "card"),
-                    on_change=_sync_people,
-                    args=(recipe["id"], "card"),
-                )
+    if story and isinstance(story[-1], PageBreak):
+        story.pop()
 
-                in_cart = recipe["id"] in cart_ids
-                if in_cart:
-                    if st.button(
-                        "✅ Au menu — retirer",
-                        key=f"cartbtn_{recipe['id']}",
-                        use_container_width=True,
-                    ):
-                        cart_ids.discard(recipe["id"])
-                        st.rerun()
-                else:
-                    if st.button(
-                        "Ajouter à mon menu",
-                        key=f"cartbtn_{recipe['id']}",
-                        type="primary",
-                        use_container_width=True,
-                    ):
-                        cart_ids.add(recipe["id"])
-                        st.rerun()
-
-st.divider()
-
-reference = st.text_input(
-    "📝 Référence (optionnel)",
-    placeholder="ex. : Repas de la semaine du 10 mai",
-    help="Apparaît en haut de la liste de courses et dans le titre du carnet de recettes.",
-    value=_current_reference(),
-    key=REFERENCE_MAIN_KEY,
-    on_change=_sync_reference,
-    args=(REFERENCE_MAIN_KEY, REFERENCE_CART_KEY),
-)
-
-if st.button(
-    "🧾 Générer la liste de courses et le carnet de recettes",
-    type="primary",
-    disabled=len(selected_choices) == 0,
-):
-    _generate_shopping_list()
-    st.rerun()
-
-if len(selected_choices) == 0:
-    st.info("Sélectionne au moins une recette pour continuer.")
+    doc.build(story, onFirstPage=_pdf_footer, onLaterPages=_pdf_footer)
+    buffer.seek(0)
+    return buffer.getvalue()
