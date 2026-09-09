@@ -77,7 +77,7 @@ Il est temps de poser les armes. CookPotes, c'est l'application qui vient sauver
 <ul>
   <li><strong>Zéro prise de tête :</strong> des idées de menus adaptées à toute la famille en deux clics.</li>
   <li><strong>Raid éclair au supermarché :</strong> une liste de courses automatique avec pile les bonnes quantités (fini le gâchis, bonjour les économies !).</li>
-  <li><strong>Du bon, du vrai fait maison :</strong> même les plus récalcitrants à la table finiront par en redemander.</li>
+  <li><strong>Du bon, du vrai fait maison :</strong> même les plus récalcitrant·es à la table finiront par en redemander.</li>
 </ul>
 <p>Bref, ensemble, sortons de la galère, gagnons du temps et mettons fin au gaspillage. Avec CookPotes, reprends enfin le contrôle de ta cuisine ! </p>
         """,
