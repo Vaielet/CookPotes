@@ -72,13 +72,16 @@ def home_page() -> None:
         """
 <p>Bienvenue sur CookPotes !</p>
 <p>Chez toi aussi, la planification des repas ressemble à un parcours du combattant ?</p>
-Entre le casse-tête de la semaine (« On mange quoiii ce soir ? »), le marathon des courses avec une liste longue comme le bras, les quantités approximatives (« Bon, 3 kilos de pâtes ça devrait aller ») et les repas équilibrés préparés avec amour que ton petit dernier préfère balancer par terre... Tu n'es pas seul·e !
-Il est temps de poser les armes. CookPotes, c'est l'application qui vient sauver tes soirées, ton portefeuille et ta santé mentale :
-* 🧠 Zéro prise de tête : Des idées de menus adaptées à toute la famille en deux clics.
-* 🛒 Raid éclair au supermarché : Une liste de courses automatique avec pile les bonnes quantités (fini le gâchis, bonjour les économies !).
-* 🥦 Du sain, du bon, du vrai : Même les plus récalcitrants à la table finiront par en redemander.
-Bref, ensemble, sortons de la galère, gagnons du temps et mettons fin au gaspillage. Avec CookPotes, reprends enfin le contrôle de ta cuisine (et de ta sérénité) ! 🚀💸
-        """
+<p>Entre le casse-tête de la semaine (« On mange quoiii ce soir ? »), le marathon des courses avec une liste longue comme le bras, les quantités approximatives (« Bon, 3 kilos de pâtes ça devrait aller ») et les repas équilibrés préparés avec amour que ton petit dernier préfère balancer par terre... Tu n'es pas seul·e !
+Il est temps de poser les armes. CookPotes, c'est l'application qui vient sauver tes soirées, ton portefeuille et ta santé mentale :</p>
+<ul>
+  <li><strong>Zéro prise de tête :</strong> Des idées de menus adaptées à toute la famille en deux clics.</li>
+  <li><strong>Raid éclair au supermarché :</strong> Une liste de courses automatique avec pile les bonnes quantités (fini le gâchis, bonjour les économies !).</li>
+  <li><strong>Du sain, du bon, du vrai :</strong> Même les plus récalcitrants à la table finiront par en redemander.</li>
+</ul>
+<p>Bref, ensemble, sortons de la galère, gagnons du temps et mettons fin au gaspillage. Avec CookPotes, reprends enfin le contrôle de ta cuisine (et de ta sérénité) ! </p>
+        """,
+        unsafe_allow_html=True,
     )
 
    
