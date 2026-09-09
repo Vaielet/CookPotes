@@ -85,7 +85,7 @@ Il est temps de poser les armes. CookPotes, c'est l'application qui vient sauver
     )
 
    
-    if common.icon_button("Comment ça marche", "comment_ca_marche.png", "📋", key="home-btn-comment"):
+    if common.icon_button("Comment ça marche ?", "comment_ca_marche.png", "📋", key="home-btn-comment"):
         st.switch_page("pages/Comment_ca_marche.py")
         
     recipes = db.get_all_recipes()
