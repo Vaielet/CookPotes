@@ -128,6 +128,8 @@ home_page_obj = st.Page(home_page, title="Accueil", default=True)
 comment_page = st.Page("pages/Comment_ca_marche.py", title="Comment ça marche ?")
 generer_page = st.Page("pages/2_Composer_mon_menu.py", title="Composer mon menu")
 ajouter_page = st.Page("pages/1_Ajouter_une_recette.py", title="Ajouter une recette")
+mes_menus_page = st.Page("pages/5_Mes_menus.py", title="Mes menus")
+
 
 # (page, fichier d'icône dans images/icons/, emoji de secours si le fichier
 # n'existe pas encore — le menu reste donc toujours fonctionnel même avant
@@ -137,13 +139,9 @@ NAV_ITEMS = [
     (comment_page, "comment_ca_marche.png", "🏠"),
     (generer_page, "generer_mon_menu.png", "🛒"),
     (ajouter_page, "ajouter_une_recette.png", "🍳"),
+    (mes_menus_page, "mes_menus.png", "📋"),
 ]
-pages = [home_page_obj, comment_page, generer_page, ajouter_page]
-
-if auth.is_editor():
-    mes_listes_page = st.Page("pages/5_Mes_menus.py", title="Mes menus")
-    pages.append(mes_listes_page)
-    NAV_ITEMS.append((mes_listes_page, "mes_menus.png", "📋"))
+pages = [home_page_obj, comment_page, generer_page, ajouter_page, mes_menus_page]
 
 if auth.is_admin():
     gestion_users_page = st.Page(
