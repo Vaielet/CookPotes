@@ -26,7 +26,10 @@ with col1:
 with col2:
     if common.icon_button("Ajouter une recette", "ajouter_une_recette.png", "🍳", key="home-btn-ajouter"):
         st.switch_page("pages/1_Ajouter_une_recette.py")
-    st.markdown("Partage tes recettes coup de coeur ou celles de ton grand-père, ta tante, etc. "
+    st.markdown("Ajoute tes recettes coup de coeur ou celles de ton grand-père, ta tante, etc. "
+    "Encode précisément chaque ingrédient et les étapes de la préparation. Tu pourras utiliser "
+    "ta recette pour composer ton menu et ta recette sera automatiquement partagée avec les autres"
+    "utilisateur·rices. "
     "**Réservé aux utilisateur·rices avec un compte** —"
     "Crée un compte ou connecte-toi via le menu à gauche.")
 
@@ -34,8 +37,8 @@ with col3:
     if common.icon_button("Mes menus", "mes_menus.png", "📋", key="home-btn-menu"):
         st.switch_page("pages/5_Mes_menus.py")
     st.markdown("Consulte tes menus enregistrés, coche les produits de ta liste pendant "
-    "tes courses et affiche la recette étape par étape. "
-    "Parce que la gestion des repas, c'est un sport d'équipe : partage tes menus (et ta charge mentale) "
+    "tes courses et affiche tes recettes étape par étape. "
+    "Et parce que la gestion des repas, c'est un sport d'équipe : partage tes menus (et ta charge mentale) "
     "avec ton/ta cohéquipier·e ! "
     "**Réservé aux utilisateur·rices avec un compte** —"
     "Crée un compte ou connecte-toi via le menu à gauche.")
