@@ -84,11 +84,11 @@ Il est temps de poser les armes. CookPotes, c'est l'application qui vient sauver
         unsafe_allow_html=True,
     )
 
-    col = st.columns(6,gap="medium",border=False)
-    with col[1]:
+    col1,col2 = st.columns(2,gap="medium",border=False)
+    with col1:
         if common.icon_button("Je veux savoir comment ça marche", "comment_ca_marche.png", "❓", key="home-btn-comment"):
             st.switch_page("pages/Comment_ca_marche.py")
-    with col[5]:
+    with col2:
         if common.icon_button("C'est parti, je veux composer mon menu", "generer_mon_menu.png", "📋", key="home-btn-generer"):
             st.switch_page("pages/2_Composer_mon_menu.py")
         
