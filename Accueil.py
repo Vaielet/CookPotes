@@ -101,7 +101,7 @@ Il est temps de poser les armes. CookPotes, c'est l'application qui vient sauver
 
     recent = db.get_recent_recipes(limit=5)
     if recent:
-        st.subheader("Dernières recettes ajoutées")
+        st.markdown("Dernières recettes ajoutées")
         recent_cols = st.columns(len(recent))
         for col, r in zip(recent_cols, recent):
             with col:
