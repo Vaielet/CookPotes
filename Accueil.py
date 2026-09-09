@@ -70,8 +70,8 @@ def home_page() -> None:
 
     st.markdown(
         """
-Bienvenue sur CookPotes !
-Chez toi aussi, la planification des repas ressemble à un parcours du combattant ?
+<p>Bienvenue sur CookPotes !</p>
+<p>Chez toi aussi, la planification des repas ressemble à un parcours du combattant ?</p>
 Entre le casse-tête de la semaine (« On mange quoiii ce soir ? »), le marathon des courses avec une liste longue comme le bras, les quantités approximatives (« Bon, 3 kilos de pâtes ça devrait aller ») et les repas équilibrés préparés avec amour que ton petit dernier préfère balancer par terre... Tu n'es pas seul·e !
 Il est temps de poser les armes. CookPotes, c'est l'application qui vient sauver tes soirées, ton portefeuille et ta santé mentale :
 * 🧠 Zéro prise de tête : Des idées de menus adaptées à toute la famille en deux clics.
