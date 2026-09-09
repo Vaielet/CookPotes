@@ -15,8 +15,10 @@ st.set_page_config(
     layout="wide",
 )
 
-    col1, col2, col3 = st.columns(3,gap="medium",border=True)
-    with col1:
+common.icon_title("Comment ça marche ?", "Comment_ca_marche.png", "📋")
+
+col1, col2, col3 = st.columns(3,gap="medium",border=True)
+with col1:
         if common.icon_button("Composer mon menu", "generer_mon_menu.png", "🛒", key="home-btn-generer"):
             st.switch_page("pages/2_Composer_mon_menu.py")
         st.markdown("Sélectionne des recettes pour "
