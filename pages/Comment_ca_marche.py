@@ -2,7 +2,6 @@ import streamlit as st
 
 import auth
 import common
-import db
 import base64
 
 
@@ -40,23 +39,5 @@ with col3:
 
 st.markdown("Utilise les deux boutons ci-dessus ou le menu à gauche pour naviguer entre les pages (appuye sur les >> en haut à gauche si tu utilises un smartphone ou une tablette.")
 
-recipes = db.get_all_recipes()
-
-col1, col2 = st.columns(2)
-col1.metric("Recettes enregistrées", len(recipes))
-
-recent = db.get_recent_recipes(limit=5)
-if recent:
-    st.subheader("Dernières recettes ajoutées")
-    recent_cols = st.columns(len(recent))
-    for col, r in zip(recent_cols, recent):
-        with col:
-            common.render_recipe_image_card(r["name"], r["image"])
-            st.caption(
-                f"👤 {r['created_by'] or 'inconnu'}  \n"
-                f"🗓️ {common.format_datetime(r['created_at'])}"
-            )
-else:
-    st.info("Aucune recette pour l'instant. Rendez-vous sur la page « Ajouter une recette ».")
 
 
