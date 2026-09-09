@@ -91,12 +91,9 @@ Il est temps de poser les armes. CookPotes, c'est l'application qui vient sauver
     recipes = db.get_all_recipes()
 
     st.markdown(
-        f"Recettes enregistrées {len(recipes)}",
+        f"Il y a déjà {len(recipes)} recettes prêtes à être ajoutées à ton menu !",
         unsafe_allow_html=True,
     )
-
-    col1, col2 = st.columns(2)
-    col1.metric("Recettes enregistrées", len(recipes))
 
     recent = db.get_recent_recipes(limit=5)
     if recent:
