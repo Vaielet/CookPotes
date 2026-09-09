@@ -108,7 +108,7 @@ Il est temps de poser les armes. CookPotes, c'est l'application qui vient sauver
                 common.render_recipe_image_card(r["name"], r["image"])
                 st.caption(
                     f"👤 {r['created_by'] or 'inconnu'}  \n"
-                    f"🗓️ {common.format_datetime(r['created_at'])}"
+                    #f"🗓️ {common.format_datetime(r['created_at'])}"
                 )
     else:
         st.info("Aucune recette pour l'instant. Rendez-vous sur la page « Ajouter une recette ».")
