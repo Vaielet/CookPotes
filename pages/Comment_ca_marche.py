@@ -11,7 +11,7 @@ st.set_page_config(
     layout="wide",
 )
 
-common.icon_title("Comment ça marche ?", "Comment_ca_marche.png", "📋")
+common.icon_title("Comment ça marche ?", "comment_ca_marche.png", "📋")
 
 col1, col2, col3 = st.columns(3,gap="medium",border=True)
 with col1:
@@ -32,7 +32,7 @@ with col2:
     "Crée un compte ou connecte-toi via le menu à gauche.")
 
 with col3:
-    if common.icon_button("Mes menus", "mes_menus.png", "📋", key="home-btn-ajouter"):
+    if common.icon_button("Mes menus", "mes_menus.png", "📋", key="home-btn-menu"):
         st.switch_page("pages/5_Mes_menus.py")
     st.markdown("Partage tes menus et ta liste de courses : parce que la gestion des repas, c'est un sport d'équipe"
     "**Réservé aux utilisateur·rices avec un compte** —"
