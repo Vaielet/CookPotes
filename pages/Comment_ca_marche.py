@@ -40,7 +40,7 @@ with col3:
     st.markdown("Consulte tes menus enregistrés, coche les produits de ta liste pendant "
     "tes courses et affiche tes recettes étape par étape. "
     "Et parce que la gestion des repas, c'est un sport d'équipe : partage tes menus (et ta charge mentale) "
-    "avec ton/ta cohéquipier·e ! "
+    "avec ton/ta co-équipier·e ! "
     "<p>**Réservé aux utilisateur·rices avec un compte** —"
     "Crée un compte ou connecte-toi via le menu à gauche.</p>",unsafe_allow_html=True,)
 
