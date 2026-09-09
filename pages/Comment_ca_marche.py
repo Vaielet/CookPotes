@@ -31,7 +31,7 @@ with col2:
     "ta recette pour composer ton menu et ta recette sera automatiquement partagée avec les autres"
     "utilisateur·rices. "
     "**Réservé aux utilisateur·rices avec un compte** —"
-    "Crée un compte ou connecte-toi via le menu à gauche.")
+    "Crée un compte ou connecte-toi via le menu à gauche.",unsafe_allow_html=True)
 
 with col3:
     if common.icon_button("Mes menus", "mes_menus.png", "📋", key="home-btn-menu"):
@@ -40,8 +40,8 @@ with col3:
     "tes courses et affiche tes recettes étape par étape. "
     "Et parce que la gestion des repas, c'est un sport d'équipe : partage tes menus (et ta charge mentale) "
     "avec ton/ta cohéquipier·e ! "
-    "**Réservé aux utilisateur·rices avec un compte** —"
-    "Crée un compte ou connecte-toi via le menu à gauche.")
+    "<p>**Réservé aux utilisateur·rices avec un compte** —"
+    "Crée un compte ou connecte-toi via le menu à gauche.</p>",unsafe_allow_html=True,)
 
 st.markdown("Utilise les trois boutons ci-dessus ou le menu à gauche pour naviguer entre les pages (appuye sur les >> en haut à gauche si tu utilises un smartphone ou une tablette.")
 
