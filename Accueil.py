@@ -125,6 +125,7 @@ Bienvenue ! Cette application te permet de :
 # ---------------------------------------------------------------------------
 
 home_page_obj = st.Page(home_page, title="Accueil", default=True)
+comment_page = st.Page("pages/Comment_ca_marche.py", title="Comment ça marche ?")
 generer_page = st.Page("pages/2_Composer_mon_menu.py", title="Composer mon menu")
 ajouter_page = st.Page("pages/1_Ajouter_une_recette.py", title="Ajouter une recette")
 
@@ -133,6 +134,7 @@ ajouter_page = st.Page("pages/1_Ajouter_une_recette.py", title="Ajouter une rece
 # d'avoir déposé vos propres images).
 NAV_ITEMS = [
     (home_page_obj, "accueil.png", "🏠"),
+    (comment_page, "comment_ca_marche.png", "🏠"),
     (generer_page, "generer_mon_menu.png", "🛒"),
     (ajouter_page, "ajouter_une_recette.png", "🍳"),
 ]
