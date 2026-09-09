@@ -70,30 +70,21 @@ def home_page() -> None:
 
     st.markdown(
         """
-Bienvenue ! Cette application te permet de :
+Bienvenue sur CookPotes !
+Chez toi aussi, la planification des repas ressemble à un parcours du combattant ?
+Entre le casse-tête de la semaine (« On mange quoiii ce soir ? »), le marathon des courses avec une liste longue comme le bras, les quantités approximatives (« Bon, 3 kilos de pâtes ça devrait aller ») et les repas équilibrés préparés avec amour que ton petit dernier préfère balancer par terre... Tu n'es pas seul·e !
+Il est temps de poser les armes. CookPotes, c'est l'application qui vient sauver tes soirées, ton portefeuille et ta santé mentale :
+* 🧠 Zéro prise de tête : Des idées de menus adaptées à toute la famille en deux clics.
+* 🛒 Raid éclair au supermarché : Une liste de courses automatique avec pile les bonnes quantités (fini le gâchis, bonjour les économies !).
+* 🥦 Du sain, du bon, du vrai : Même les plus récalcitrants à la table finiront par en redemander.
+Bref, ensemble, sortons de la galère, gagnons du temps et mettons fin au gaspillage. Avec CookPotes, reprends enfin le contrôle de ta cuisine (et de ta sérénité) ! 🚀💸
         """
     )
 
-    col1, col2 = st.columns(2,gap="large",border=True)
-    with col1:
-        if common.icon_button("Composer mon menu", "generer_mon_menu.png", "🛒", key="home-btn-generer"):
-            st.switch_page("pages/2_Composer_mon_menu.py")
-        st.markdown("Sélectionne des recettes pour "
-        "composer ton menu. Indique le "
-        "nombre de personnes pour chaque recette. Télécharge "
-        "ta liste de courses et le carnet avec les recettes sélectionnées en PDF. "
-        "Si tu as un compte, tu peux enregistrer ton menu pour consulter "
-        "la liste de courses et les recettes plus tard.")
-
-    with col2:
-        if common.icon_button("Ajouter une recette", "ajouter_une_recette.png", "🍳", key="home-btn-ajouter"):
-            st.switch_page("pages/1_Ajouter_une_recette.py")
-        st.markdown("Partage tes recettes coup de coeur ou celles de ton grand-père, ta tante, etc. "
-        "**Réservé aux utilisateur·rices avec un compte** —"
-        "Crée un compte ou connecte-toi via le menu à gauche.")
-
-    st.markdown("Utilise les deux boutons ci-dessus ou le menu à gauche pour naviguer entre les pages (appuye sur les >> en haut à gauche si tu utilises un smartphone ou une tablette.")
-
+   
+    if common.icon_button("Ajouter une recette", "ajouter_une_recette.png", "🍳", key="home-btn-ajouter"):
+        st.switch_page("pages/1_Ajouter_une_recette.py")
+        
     recipes = db.get_all_recipes()
 
     col1, col2 = st.columns(2)
