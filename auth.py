@@ -144,7 +144,7 @@ def render_sidebar_auth() -> None:
 
 
 def require_editor(
-    message: str = "🔒 Connecte-toi avec un compte éditeur (menu de gauche) pour accéder à cette page.",
+    message: str = "🔒 Connecte-toi  ou crée un compte (menu de gauche) pour accéder à cette page — c'est gratuit et ça prend 10 secondes.",
 ) -> None:
     """
     À appeler tout en haut d'une page réservée aux éditeurs de recettes.
