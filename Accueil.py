@@ -95,7 +95,7 @@ Il est temps de poser les armes. CookPotes, c'est l'application qui vient sauver
     recipes = db.get_all_recipes()
 
     st.markdown(
-        f"Il y a déjà {len(recipes)} recettes prêtes à être ajoutées à ton menu !",
+        f"Il y a déjà {len(recipes)} recettes prêtes à être ajoutées à ton menu.",
         unsafe_allow_html=True,
     )
 
