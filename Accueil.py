@@ -75,7 +75,7 @@ def home_page() -> None:
 <p>Entre le casse-tête de la semaine (« On mange quoiii ce soir ? »), le marathon des courses avec une liste longue comme le bras, les quantités approximatives (« Bon, 3 kilos de pâtes ça devrait aller ») et les repas équilibrés préparés avec amour que ton petit dernier préfère balancer par terre... Tu n'es pas seul·e !
 CookPotes, c'est l'application qui vient sauver tes soirées, ton portefeuille et ta santé mentale :</p>
 <ul>
-  <li><strong>Zéro prise de tête :</strong> des idées de menus adaptées à toute la famille en deux clics.</li>
+  <li><strong>Zéro prise de tête :</strong> des idées de menus adaptées à toute la famille en quelques clics.</li>
   <li><strong>Raid éclair au magasin :</strong> une liste de courses automatique avec pile les bonnes quantités (fini le gâchis, bonjour les économies).</li>
   <li><strong>Du bon, du vrai fait maison :</strong> même les plus récalcitrant·es à la table finiront par en redemander.</li>
 </ul>
