@@ -79,14 +79,14 @@ Il est temps de poser les armes. CookPotes, c'est l'application qui vient sauver
   <li><strong>Raid éclair au supermarché :</strong> Une liste de courses automatique avec pile les bonnes quantités (fini le gâchis, bonjour les économies !).</li>
   <li><strong>Du sain, du bon, du vrai :</strong> Même les plus récalcitrants à la table finiront par en redemander.</li>
 </ul>
-<p>Bref, ensemble, sortons de la galère, gagnons du temps et mettons fin au gaspillage. Avec CookPotes, reprends enfin le contrôle de ta cuisine (et de ta sérénité) ! </p>
+<p>Bref, ensemble, sortons de la galère, gagnons du temps et mettons fin au gaspillage. Avec CookPotes, reprends enfin le contrôle de ta cuisine ! </p>
         """,
         unsafe_allow_html=True,
     )
 
    
-    if common.icon_button("Ajouter une recette", "ajouter_une_recette.png", "🍳", key="home-btn-ajouter"):
-        st.switch_page("pages/1_Ajouter_une_recette.py")
+    if common.icon_button("Comment ça marche", "comment_ca_marche.png", "📋", key="home-btn-comment"):
+        st.switch_page("pages/Comment_ca_marche.py")
         
     recipes = db.get_all_recipes()
 
