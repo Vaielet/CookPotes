@@ -163,16 +163,28 @@ selected_id = options[selected_label]
 st.session_state["open_list_id"] = selected_id
 
 delete_col.write("")
-with delete_col.popover("🗑️ Supprimer ce menu", use_container_width=True):
+delete_confirm_key = f"confirm_delete_list_{selected_id}"
+if delete_col.button("🗑️ Supprimer ce menu", use_container_width=True):
+    st.session_state[delete_confirm_key] = True
+    st.rerun()
+
+if st.session_state.get(delete_confirm_key):
     st.warning(f"Es-tu sûr·e de vouloir supprimer « {current_label} » ? Cette action est irréversible.")
-    if st.button(
-        "✅ Oui, supprimer définitivement", key=f"confirm_delete_list_{selected_id}",
+    confirm_cols = st.columns(2)
+    if confirm_cols[0].button(
+        "✅ Oui, supprimer définitivement", key=f"confirm_delete_list_yes_{selected_id}",
         type="primary", use_container_width=True,
     ):
         db.delete_saved_list(selected_id, user_id)
         st.session_state.pop("_list_detail_cache", None)
+        st.session_state.pop(delete_confirm_key, None)
         st.session_state["open_list_id"] = None
         st.session_state["_flash_list_msg"] = "Liste supprimée."
+        st.rerun()
+    if confirm_cols[1].button(
+        "Annuler", key=f"confirm_delete_list_no_{selected_id}", use_container_width=True,
+    ):
+        st.session_state.pop(delete_confirm_key, None)
         st.rerun()
 
 detail = _load_list_detail(selected_id, user_id)

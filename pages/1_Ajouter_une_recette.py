@@ -530,14 +530,27 @@ else:
                 if btn_cols[0].button("✏️ Modifier", key=f"editrecipe_{data['id']}", use_container_width=True):
                     st.session_state["_pending_edit_id"] = data["id"]
                     st.rerun()
-                with btn_cols[1].popover("🗑️ Supprimer", use_container_width=True):
+
+                delete_confirm_key = f"confirm_delete_{data['id']}"
+                if btn_cols[1].button("🗑️ Supprimer", key=f"delrecipe_{data['id']}", use_container_width=True):
+                    st.session_state[delete_confirm_key] = True
+                    st.rerun()
+
+                if st.session_state.get(delete_confirm_key):
                     st.warning(f"Es-tu sûr·e de vouloir supprimer « {name} » ? Cette action est irréversible.")
-                    if st.button(
+                    confirm_cols = st.columns(2)
+                    if confirm_cols[0].button(
                         "✅ Oui, supprimer définitivement", key=f"confirmdel_{data['id']}",
                         type="primary", use_container_width=True,
                     ):
                         db.delete_recipe(data["id"])
+                        st.session_state.pop(delete_confirm_key, None)
                         st.session_state["_flash_success"] = f"Recette « {name} » supprimée."
+                        st.rerun()
+                    if confirm_cols[1].button(
+                        "Annuler", key=f"canceldel_{data['id']}", use_container_width=True,
+                    ):
+                        st.session_state.pop(delete_confirm_key, None)
                         st.rerun()
             else:
                 st.caption("🔒 La modification et la suppression sont réservées aux administrateurs.")
