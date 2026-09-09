@@ -28,7 +28,7 @@ with col2:
         st.switch_page("pages/1_Ajouter_une_recette.py")
     st.markdown("Ajoute tes recettes coup de coeur ou celles de ton grand-père, ta tante, etc. "
     "Encode précisément chaque ingrédient et les étapes de la préparation. Tu pourras utiliser "
-    "ta recette pour composer ton menu et ta recette sera automatiquement partagée avec les autres"
+    "ta recette pour composer ton menu et ta recette sera automatiquement partagée avec les autres "
     "utilisateur·rices. "
     "<p>**Réservé aux utilisateur·rices avec un compte** —"
     "Crée un compte ou connecte-toi via le menu à gauche.</p>",unsafe_allow_html=True)
