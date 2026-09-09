@@ -14,11 +14,6 @@ st.set_page_config(
     page_title="Comment ça marche ?",
     layout="wide",
 )
-    st.markdown(
-        """
-Bienvenue ! Cette application te permet de :
-        """
-    )
 
     col1, col2, col3 = st.columns(3,gap="medium",border=True)
     with col1:
