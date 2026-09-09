@@ -91,9 +91,7 @@ Il est temps de poser les armes. CookPotes, c'est l'application qui vient sauver
     recipes = db.get_all_recipes()
 
     st.markdown(
-        """
-        f"Recettes enregistrées {len(recipes)}"
-        """,
+        f"Recettes enregistrées {len(recipes)}",
         unsafe_allow_html=True,
     )
 
