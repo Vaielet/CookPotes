@@ -138,7 +138,7 @@ NAV_ITEMS = [
     (generer_page, "generer_mon_menu.png", "🛒"),
     (ajouter_page, "ajouter_une_recette.png", "🍳"),
 ]
-pages = [home_page_obj, generer_page, ajouter_page]
+pages = [home_page_obj, comment_page, generer_page, ajouter_page]
 
 if auth.is_editor():
     mes_listes_page = st.Page("pages/5_Mes_menus.py", title="Mes menus")
