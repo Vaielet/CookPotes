@@ -26,10 +26,11 @@ with col1:
 with col2:
     if common.icon_button("Ajouter une recette", "ajouter_une_recette.png", "🍳", key="home-btn-ajouter"):
         st.switch_page("pages/1_Ajouter_une_recette.py")
-    st.markdown("Ajoute tes recettes coup de coeur ou celles de ton grand-père, ta tante, etc. "
-    "Encode précisément chaque ingrédient et les étapes de la préparation. Tu pourras utiliser "
-    "ta recette pour composer ton menu et ta recette sera automatiquement partagée avec les autres "
-    "utilisateur·rices. "
+    st.markdown("Tu es le contrôle qualité ! Ici, on ne partage que du vécu "
+    ": ajoute tes recettes coup de cœur ou les pépites de ton grand-père, "
+    "à condition de les avoir testées et approuvées. Encode précisément "
+    "chaque ingrédient et étape : ta recette te servira à composer tes menus "
+    "et régalera automatiquement tou·tes les CookPotes."
     "<p>**Réservé aux utilisateur·rices avec un compte** —"
     "Crée un compte ou connecte-toi via le menu à gauche.</p>",unsafe_allow_html=True)
 
