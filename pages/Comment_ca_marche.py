@@ -37,7 +37,7 @@ with col3:
     "**Réservé aux utilisateur·rices avec un compte** —"
     "Crée un compte ou connecte-toi via le menu à gauche.")
 
-st.markdown("Utilise les deux boutons ci-dessus ou le menu à gauche pour naviguer entre les pages (appuye sur les >> en haut à gauche si tu utilises un smartphone ou une tablette.")
+st.markdown("Utilise les trois boutons ci-dessus ou le menu à gauche pour naviguer entre les pages (appuye sur les >> en haut à gauche si tu utilises un smartphone ou une tablette.")
 
 
 
