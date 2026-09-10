@@ -126,7 +126,12 @@ if st.session_state.get("_flash_list_msg"):
 
 lists_summary = db.get_saved_lists(user_id)
 
-st.caption(f"{len(lists_summary)} / {db.MAX_SAVED_LISTS_PER_USER} menu(s) enregistré(s).")
+owned_count = sum(1 for l in lists_summary if l["is_owner"])
+shared_count = len(lists_summary) - owned_count
+counter_caption = f"{owned_count} / {db.MAX_SAVED_LISTS_PER_USER} menu(s) enregistré(s)"
+if shared_count:
+    counter_caption += f" · {shared_count} partagé(s) avec toi"
+st.caption(counter_caption)
 
 if not lists_summary:
     st.info(
@@ -144,7 +149,10 @@ if not lists_summary:
 def _list_label(l: dict) -> str:
     title = l["reference"] or "Liste sans nom"
     date = common.format_datetime(l["created_at"])
-    return f"{title} — {date} ({l['checked_items']}/{l['total_items']} cochés)"
+    label = f"{title} — {date} ({l['checked_items']}/{l['total_items']} cochés)"
+    if not l["is_owner"]:
+        label += f" · partagé par {l['owner_username']}"
+    return label
 
 
 options = {_list_label(l): l["id"] for l in lists_summary}
@@ -155,31 +163,52 @@ if "open_list_id" not in st.session_state or st.session_state["open_list_id"] no
 
 current_label = next(lbl for lbl, i in options.items() if i == st.session_state["open_list_id"])
 
-select_col, delete_col = st.columns([4, 1],vertical_alignment="bottom")
+summary_by_id = {l["id"]: l for l in lists_summary}
+
+select_col, refresh_col, delete_col = st.columns([4, 1, 1], vertical_alignment="bottom")
 selected_label = select_col.selectbox(
     "Choisis un menu", options=labels, index=labels.index(current_label),
 )
 selected_id = options[selected_label]
 st.session_state["open_list_id"] = selected_id
+is_owner = summary_by_id[selected_id]["is_owner"]
+
+refresh_col.write("")
+if refresh_col.button(
+    "🔄 Actualiser", use_container_width=True,
+    help="Recharge ce menu depuis le serveur — utile si quelqu'un d'autre a coché un article entre-temps.",
+):
+    st.session_state.pop("_list_detail_cache", None)
+    st.rerun()
 
 delete_col.write("")
 delete_confirm_key = f"confirm_delete_list_{selected_id}"
-if delete_col.button("🗑️ Supprimer ce menu", use_container_width=True):
+delete_label = "🗑️ Supprimer" if is_owner else "🚪 Quitter"
+if delete_col.button(delete_label, use_container_width=True):
     st.session_state[delete_confirm_key] = True
     st.rerun()
 
 if st.session_state.get(delete_confirm_key):
-    st.warning(f"Es-tu sûr·e de vouloir supprimer « {current_label} » ? Cette action est irréversible.")
+    if is_owner:
+        st.warning(f"Es-tu sûr·e de vouloir supprimer « {current_label} » ? Cette action est irréversible.")
+    else:
+        st.warning(f"Quitter « {current_label} » ? Tu perdras l'accès à ce menu partagé (la personne qui l'a "
+                    "partagé avec toi pourra toujours te le repartager plus tard).")
     confirm_cols = st.columns(2)
     if confirm_cols[0].button(
-        "✅ Oui, supprimer définitivement", key=f"confirm_delete_list_yes_{selected_id}",
+        "✅ Oui, confirmer", key=f"confirm_delete_list_yes_{selected_id}",
         type="primary", use_container_width=True,
     ):
-        db.delete_saved_list(selected_id, user_id)
+        if is_owner:
+            db.delete_saved_list(selected_id, user_id)
+            flash = "Menu supprimé."
+        else:
+            db.remove_list_share(selected_id, requesting_user_id=user_id, target_user_id=user_id)
+            flash = "Tu as quitté ce menu partagé."
         st.session_state.pop("_list_detail_cache", None)
         st.session_state.pop(delete_confirm_key, None)
         st.session_state["open_list_id"] = None
-        st.session_state["_flash_list_msg"] = "Liste supprimée."
+        st.session_state["_flash_list_msg"] = flash
         st.rerun()
     if confirm_cols[1].button(
         "Annuler", key=f"confirm_delete_list_no_{selected_id}", use_container_width=True,
@@ -191,6 +220,39 @@ detail = _load_list_detail(selected_id, user_id)
 if detail is None:
     st.warning("Cette liste n'existe plus.")
     st.stop()
+
+if not detail["is_owner"]:
+    st.caption(f"👥 Menu partagé par **{detail['owner_username']}**.")
+else:
+    with st.expander("👥 Partager ce menu"):
+        shares = db.get_list_shares(selected_id, user_id)
+        if shares:
+            st.caption("Ce menu est actuellement partagé avec :")
+            for share in shares:
+                share_row_cols = st.columns([4, 1])
+                share_row_cols[0].markdown(f"- {share['username']}")
+                if share_row_cols[1].button(
+                    "Retirer", key=f"unshare_{selected_id}_{share['user_id']}", use_container_width=True,
+                ):
+                    db.remove_list_share(selected_id, requesting_user_id=user_id, target_user_id=share["user_id"])
+                    st.rerun()
+        else:
+            st.caption("Ce menu n'est partagé avec personne pour l'instant.")
+
+        with st.form(f"share_form_{selected_id}", clear_on_submit=True):
+            share_username = st.text_input("Identifiant du compte avec qui partager")
+            share_submitted = st.form_submit_button("Partager")
+        if share_submitted:
+            if not share_username.strip():
+                st.error("Indique un identifiant.")
+            else:
+                try:
+                    shared_with = db.add_list_share(selected_id, user_id, share_username)
+                except db.ListShareError as exc:
+                    st.error(str(exc))
+                else:
+                    st.success(f"Menu partagé avec « {shared_with} ».")
+                    st.rerun()
 
 existing_recipe_names = db.get_recipe_names()
 
