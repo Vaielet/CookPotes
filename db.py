@@ -241,6 +241,15 @@ def init_db() -> None:
                 position  INTEGER NOT NULL DEFAULT 0
             )
         """))
+        conn.execute(text("""
+            CREATE TABLE IF NOT EXISTS saved_shopping_list_shares (
+                id          SERIAL PRIMARY KEY,
+                list_id     INTEGER NOT NULL REFERENCES saved_shopping_lists(id) ON DELETE CASCADE,
+                user_id     INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+                created_at  TEXT NOT NULL,
+                UNIQUE (list_id, user_id)
+            )
+        """))
     _migrate_schema()
     _seed_default_recipes_if_empty()
     _seed_default_admin_if_empty()
@@ -927,6 +936,20 @@ def list_users() -> list[dict]:
     ]
 
 
+def get_user_by_username(username: str) -> dict | None:
+    """
+    Recherche insensible à la casse (pratique pour le partage : on ne veut
+    pas qu'une différence de majuscule empêche de retrouver un compte).
+    Renvoie None si aucun compte ne correspond.
+    """
+    with get_conn() as conn:
+        row = conn.execute(
+            text("SELECT id, username FROM users WHERE LOWER(username) = LOWER(:username)"),
+            {"username": (username or "").strip()},
+        ).mappings().first()
+    return {"id": row["id"], "username": row["username"]} if row else None
+
+
 def set_user_role(user_id: int, is_editor: bool, is_admin: bool, can_manage_products: bool | None = None) -> None:
     """
     Met à jour les rôles d'un compte. `can_manage_products` est optionnel :
@@ -1157,18 +1180,41 @@ def save_shopping_list(
 
 @st.cache_data(show_spinner=False, ttl=_READ_CACHE_TTL)
 def get_saved_lists(user_id: int) -> list[dict]:
-    """Résumé des listes enregistrées par un·e utilisateur·rice, plus récentes d'abord."""
+    """
+    Résumé des listes accessibles par un·e utilisateur·rice : celles qu'il·elle
+    possède, ET celles partagées avec lui·elle par quelqu'un d'autre — plus
+    récentes d'abord. Chaque entrée indique `is_owner` (pour savoir si les
+    actions de gestion — supprimer, partager — doivent être proposées) et
+    `owner_username` (rempli seulement pour les listes partagées, pour
+    affichage : "partagé par ...").
+    """
     with get_conn() as conn:
         rows = conn.execute(
             text("""
                 SELECT l.id, l.reference, l.created_at,
                        COUNT(i.id) AS total_items,
-                       COALESCE(SUM(CASE WHEN i.checked THEN 1 ELSE 0 END), 0) AS checked_items
+                       COALESCE(SUM(CASE WHEN i.checked THEN 1 ELSE 0 END), 0) AS checked_items,
+                       TRUE AS is_owner,
+                       NULL::TEXT AS owner_username
                 FROM saved_shopping_lists l
                 LEFT JOIN saved_shopping_list_items i ON i.list_id = l.id
                 WHERE l.user_id = :user_id
                 GROUP BY l.id
-                ORDER BY l.created_at DESC, l.id DESC
+
+                UNION ALL
+
+                SELECT l.id, l.reference, l.created_at,
+                       COUNT(i.id) AS total_items,
+                       COALESCE(SUM(CASE WHEN i.checked THEN 1 ELSE 0 END), 0) AS checked_items,
+                       FALSE AS is_owner,
+                       u.username AS owner_username
+                FROM saved_shopping_lists l
+                JOIN saved_shopping_list_shares s ON s.list_id = l.id AND s.user_id = :user_id
+                JOIN users u ON u.id = l.user_id
+                LEFT JOIN saved_shopping_list_items i ON i.list_id = l.id
+                GROUP BY l.id, u.username
+
+                ORDER BY created_at DESC, id DESC
             """),
             {"user_id": user_id},
         ).mappings().all()
@@ -1179,6 +1225,8 @@ def get_saved_lists(user_id: int) -> list[dict]:
             "created_at": r["created_at"],
             "total_items": r["total_items"],
             "checked_items": r["checked_items"],
+            "is_owner": bool(r["is_owner"]),
+            "owner_username": r["owner_username"],
         }
         for r in rows
     ]
@@ -1187,14 +1235,31 @@ def get_saved_lists(user_id: int) -> list[dict]:
 @st.cache_data(show_spinner=False, ttl=_READ_CACHE_TTL)
 def get_saved_list(list_id: int, user_id: int) -> dict | None:
     """
-    Détail complet d'une liste enregistrée (recettes + articles), ou None
-    si elle n'existe pas ou n'appartient pas à `user_id` (vérification
-    d'appartenance systématique — on ne fait jamais confiance à un id
-    reçu sans vérifier son propriétaire).
+    Détail complet d'une liste (recettes + articles), accessible si
+    `user_id` en est le·la propriétaire OU si la liste a été partagée avec
+    lui·elle — vérification d'accès systématique, jamais de confiance
+    aveugle en un id reçu. Renvoie None si aucune des deux conditions
+    n'est remplie (y compris si la liste n'existe simplement pas).
+
+    Champs utiles côté page : `is_owner` (affichage des actions de gestion
+    — supprimer, gérer le partage) et `owner_username` (affichage "partagé
+    par ..." quand ce n'est pas le cas).
     """
     with get_conn() as conn:
         list_row = conn.execute(
-            text("SELECT * FROM saved_shopping_lists WHERE id = :id AND user_id = :user_id"),
+            text("""
+                SELECT l.*, u.username AS owner_username
+                FROM saved_shopping_lists l
+                JOIN users u ON u.id = l.user_id
+                WHERE l.id = :id
+                  AND (
+                        l.user_id = :user_id
+                        OR EXISTS (
+                            SELECT 1 FROM saved_shopping_list_shares s
+                            WHERE s.list_id = l.id AND s.user_id = :user_id
+                        )
+                  )
+            """),
             {"id": list_id, "user_id": user_id},
         ).mappings().first()
         if list_row is None:
@@ -1213,6 +1278,9 @@ def get_saved_list(list_id: int, user_id: int) -> dict | None:
         "id": list_row["id"],
         "reference": list_row["reference"],
         "created_at": list_row["created_at"],
+        "owner_user_id": list_row["user_id"],
+        "owner_username": list_row["owner_username"],
+        "is_owner": list_row["user_id"] == user_id,
         "recipes": [{"name": r["recipe_name"], "people": r["people"]} for r in recipe_rows],
         "items": [
             {"id": r["id"], "category": r["category"], "label": r["label"], "checked": bool(r["checked"])}
@@ -1222,14 +1290,23 @@ def get_saved_list(list_id: int, user_id: int) -> dict | None:
 
 
 def set_shopping_item_checked(item_id: int, user_id: int, checked: bool) -> None:
-    """Coche/décoche un article — vérifie que l'article appartient bien à une liste de `user_id`."""
+    """
+    Coche/décoche un article — autorisé pour le·la propriétaire de la liste
+    ET pour toute personne avec qui elle a été partagée (vérifié via une
+    sous-requête ; si `user_id` n'a accès ni comme propriétaire ni comme
+    partagé·e, la clause WHERE ne matche aucune ligne et rien n'est modifié,
+    silencieusement — même logique de sécurité que le reste du module)."""
     with get_conn() as conn:
         conn.execute(
             text("""
                 UPDATE saved_shopping_list_items
                 SET checked = :checked
                 WHERE id = :item_id
-                  AND list_id IN (SELECT id FROM saved_shopping_lists WHERE user_id = :user_id)
+                  AND list_id IN (
+                        SELECT id FROM saved_shopping_lists WHERE user_id = :user_id
+                        UNION
+                        SELECT list_id FROM saved_shopping_list_shares WHERE user_id = :user_id
+                  )
             """),
             {"checked": bool(checked), "item_id": item_id, "user_id": user_id},
         )
@@ -1237,10 +1314,124 @@ def set_shopping_item_checked(item_id: int, user_id: int, checked: bool) -> None
 
 
 def delete_saved_list(list_id: int, user_id: int) -> None:
-    """Supprime une liste enregistrée — vérifie que `user_id` en est bien le·la propriétaire."""
+    """Supprime une liste enregistrée — vérifie que `user_id` en est bien le·la propriétaire.
+    Les partages associés disparaissent automatiquement (ON DELETE CASCADE)."""
     with get_conn() as conn:
         conn.execute(
             text("DELETE FROM saved_shopping_lists WHERE id = :id AND user_id = :user_id"),
             {"id": list_id, "user_id": user_id},
         )
     _clear_saved_list_caches()
+
+
+class ListShareError(Exception):
+    """
+    Levée par add_list_share quand le partage n'a pas pu être fait. Le
+    message (str(exc)) est déjà rédigé pour être affiché tel quel, par
+    exemple :
+
+        try:
+            db.add_list_share(list_id, owner_user_id, username)
+        except db.ListShareError as exc:
+            st.error(str(exc))
+    """
+
+
+def get_list_shares(list_id: int, owner_user_id: int) -> list[dict]:
+    """
+    Liste des comptes avec qui une liste a été partagée — réservé au·à la
+    propriétaire (vérifié avant de renvoyer quoi que ce soit ; renvoie une
+    liste vide si `owner_user_id` n'est pas le·la propriétaire, plutôt que
+    de lever une erreur, pour rester simple à appeler côté page)."""
+    with get_conn() as conn:
+        owns_it = conn.execute(
+            text("SELECT 1 FROM saved_shopping_lists WHERE id = :id AND user_id = :user_id"),
+            {"id": list_id, "user_id": owner_user_id},
+        ).first()
+        if owns_it is None:
+            return []
+        rows = conn.execute(
+            text("""
+                SELECT u.id AS user_id, u.username
+                FROM saved_shopping_list_shares s
+                JOIN users u ON u.id = s.user_id
+                WHERE s.list_id = :list_id
+                ORDER BY LOWER(u.username)
+            """),
+            {"list_id": list_id},
+        ).mappings().all()
+    return [{"user_id": r["user_id"], "username": r["username"]} for r in rows]
+
+
+def add_list_share(list_id: int, owner_user_id: int, target_username: str) -> str:
+    """
+    Partage une liste avec un compte existant, désigné par son identifiant.
+    Seul·e le·la propriétaire peut partager sa propre liste. Renvoie le nom
+    d'utilisateur (casse d'origine du compte) en cas de succès.
+
+    Lève ListShareError (message prêt à afficher) si :
+    - `owner_user_id` n'est pas le·la propriétaire de la liste ;
+    - le compte cible n'existe pas ;
+    - le compte cible est le·la propriétaire lui·elle-même ;
+    - la liste est déjà partagée avec ce compte.
+    """
+    with get_conn() as conn:
+        owns_it = conn.execute(
+            text("SELECT 1 FROM saved_shopping_lists WHERE id = :id AND user_id = :user_id"),
+            {"id": list_id, "user_id": owner_user_id},
+        ).first()
+        if owns_it is None:
+            raise ListShareError("Seul·e le·la propriétaire d'un menu peut le partager.")
+
+        target = conn.execute(
+            text("SELECT id, username FROM users WHERE LOWER(username) = LOWER(:username)"),
+            {"username": (target_username or "").strip()},
+        ).mappings().first()
+        if target is None:
+            raise ListShareError(f"Aucun compte trouvé avec l'identifiant « {target_username} ».")
+        if target["id"] == owner_user_id:
+            raise ListShareError("Impossible de partager un menu avec soi-même.")
+
+        try:
+            conn.execute(
+                text("""
+                    INSERT INTO saved_shopping_list_shares (list_id, user_id, created_at)
+                    VALUES (:list_id, :user_id, :created_at)
+                """),
+                {"list_id": list_id, "user_id": target["id"], "created_at": _now_iso()},
+            )
+        except IntegrityError:
+            raise ListShareError(f"Ce menu est déjà partagé avec « {target['username']} ».")
+
+    _clear_saved_list_caches()
+    return target["username"]
+
+
+def remove_list_share(list_id: int, requesting_user_id: int, target_user_id: int) -> bool:
+    """
+    Retire l'accès d'un compte à une liste partagée. Autorisé dans deux cas :
+    - `requesting_user_id` est le·la propriétaire de la liste (il·elle
+      révoque l'accès de quelqu'un d'autre) ;
+    - `requesting_user_id == target_user_id` (la personne quitte
+      elle-même un menu partagé avec elle).
+    Renvoie True si un partage a bien été supprimé, False sinon (aucun des
+    deux cas ne s'applique, ou le partage n'existait pas).
+    """
+    with get_conn() as conn:
+        is_owner = conn.execute(
+            text("SELECT 1 FROM saved_shopping_lists WHERE id = :id AND user_id = :user_id"),
+            {"id": list_id, "user_id": requesting_user_id},
+        ).first() is not None
+
+        if not (is_owner or requesting_user_id == target_user_id):
+            return False
+
+        result = conn.execute(
+            text("DELETE FROM saved_shopping_list_shares WHERE list_id = :list_id AND user_id = :target_user_id"),
+            {"list_id": list_id, "target_user_id": target_user_id},
+        )
+        deleted = result.rowcount > 0
+
+    if deleted:
+        _clear_saved_list_caches()
+    return deleted
