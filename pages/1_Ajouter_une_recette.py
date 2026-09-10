@@ -37,6 +37,10 @@ st.caption(
     "de données et disponibles pour tou·tes les utilisateur·rices"
     " immédiatement sur la page « Composer mon menu »."
 )
+st.caption(
+    "Rappelle-toi, tu es le contrôle qualité : ne partage "
+    "que des recettes que tu as testées et approuvées."
+)
 
 
 # ---------------------------------------------------------------------------
