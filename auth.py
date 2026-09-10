@@ -9,20 +9,40 @@ Limitations à connaître :
   verrouillé, onglet en arrière-plan...), un cas très fréquent sur
   Streamlit Cloud — démarre une NOUVELLE session Streamlit et vide
   st.session_state, déconnectant la personne malgré elle.
-- Pour éviter ça, on pose un cookie navigateur "garde-moi connecté·e"
-  (voir REMEMBER_COOKIE_NAME plus bas, via streamlit-cookies-controller) :
-  un jeton longue durée (30 jours), dont seul le hash est stocké côté
-  serveur (db.remember_tokens). À chaque page vue où la session semble
-  perdue, on vérifie ce cookie et on restaure la connexion silencieusement
-  si le jeton est valide — voir _restore_session_from_cookie(). Le jeton
-  est révoqué (et le cookie supprimé) uniquement à la déconnexion
-  explicite, ou à expiration naturelle (30 jours).
+- Pour éviter ça, on pose un cookie navigateur "garde-moi connecté·e" : un
+  jeton longue durée (30 jours), dont seul le hash est stocké côté serveur
+  (db.remember_tokens). À chaque page vue où la session semble perdue, on
+  vérifie ce cookie et on restaure la connexion silencieusement si le
+  jeton est valide — voir _restore_session_from_cookie(). Le jeton est
+  révoqué (et le cookie supprimé) uniquement à la déconnexion explicite,
+  ou à expiration naturelle (30 jours).
+- LECTURE du cookie : via st.context.cookies, l'API *native* de Streamlit
+  (lit directement l'en-tête HTTP "Cookie" de la requête qui a chargé la
+  page — donc toujours à jour dès le tout premier rendu du script, sans
+  aller-retour asynchrone). Une première implémentation lisait le cookie
+  via le composant tiers streamlit-cookies-controller, dont la valeur
+  retournée s'est révélée pas toujours fiable après une fermeture
+  complète du navigateur (composant pas encore "chargé" au premier rendu)
+  — un problème documenté par plusieurs personnes pour cette bibliothèque
+  : https://discuss.streamlit.io/t/new-component-streamlit-cookies-controller/64251
+- ÉCRITURE du cookie : Streamlit ne permet pas encore de poser un cookie
+  depuis Python (voir streamlit/streamlit#9421, toujours ouvert) — on
+  passe donc par streamlit-cookies-controller UNIQUEMENT pour set(), à la
+  connexion et à la déconnexion. On n'utilise PAS sa méthode remove() :
+  son code source (__getOptions) fait par erreur pointer la date
+  d'expiration par défaut vers DEMAIN plutôt que vers le passé quand
+  aucune date n'est fournie, ce qui explique que remove() ne supprime pas
+  fiablement le cookie (autre problème documenté sur ce même fil). On
+  supprime donc le cookie "à la main", en appelant set() avec une date
+  d'expiration explicitement passée — la manière standard de supprimer un
+  cookie, quel que soit l'outil utilisé.
 - Les mots de passe sont hachés (PBKDF2-SHA256 salé) avant stockage, jamais
   conservés en clair.
 """
 
 from __future__ import annotations
 
+import time
 from datetime import datetime, timedelta, timezone
 
 import streamlit as st
@@ -41,9 +61,25 @@ def _get_cookie_controller() -> CookieController:
     la bibliothèque : ce n'est pas une ressource serveur à partager entre
     utilisateur·rices (contrairement à @st.cache_resource ailleurs dans
     l'appli), juste un pont vers les cookies du navigateur de LA session
-    Streamlit en cours.
+    Streamlit en cours. Utilisée UNIQUEMENT pour écrire (set) — jamais
+    pour lire, voir docstring du module.
     """
     return CookieController()
+
+
+def _set_remember_cookie(token: str) -> None:
+    _get_cookie_controller().set(
+        REMEMBER_COOKIE_NAME, token,
+        expires=datetime.now(timezone.utc) + timedelta(days=db.REMEMBER_TOKEN_DAYS),
+    )
+
+
+def _clear_remember_cookie() -> None:
+    """Supprime le cookie en écrasant sa valeur avec une date d'expiration passée (voir docstring du module — pas de .remove(), peu fiable)."""
+    _get_cookie_controller().set(
+        REMEMBER_COOKIE_NAME, "",
+        expires=datetime.now(timezone.utc) - timedelta(days=1),
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -112,25 +148,21 @@ def _restore_session_from_cookie() -> None:
     l'identifiant/mot de passe. Ne fait rien si déjà connecté·e, ou si
     aucun cookie valide n'est présent.
 
-    Limite connue : juste après l'ouverture d'un tout nouvel onglet/
-    fenêtre (pas juste une reconnexion en cours de session), le composant
-    cookie peut avoir besoin d'un aller-retour avant que Python ne "voie"
-    le cookie existant — dans ce cas précis, un premier rerun peut encore
-    montrer l'écran de connexion avant que la restauration silencieuse ne
-    s'applique. Sans conséquence dans le cas visé ici (perte de session en
-    cours d'usage), qui est le problème réellement rencontré.
+    Lit via st.context.cookies (natif, voir docstring du module) : toujours
+    à jour dès le tout premier rendu du script, y compris juste après une
+    fermeture/réouverture complète du navigateur.
     """
     if is_logged_in():
         return
 
-    token = _get_cookie_controller().get(REMEMBER_COOKIE_NAME)
+    token = st.context.cookies.get(REMEMBER_COOKIE_NAME)
     if not token:
         return
 
     user = db.verify_remember_token(token)
     if user is None:
         # Jeton expiré ou révoqué : on nettoie le cookie périmé côté navigateur.
-        _get_cookie_controller().remove(REMEMBER_COOKIE_NAME)
+        _clear_remember_cookie()
         return
 
     _apply_session(user)
@@ -145,20 +177,22 @@ def login(username: str, password: str) -> bool:
 
     # Pose le cookie "garde-moi connecté·e" — voir docstring du module.
     token = db.create_remember_token(user["id"])
-    _get_cookie_controller().set(
-        REMEMBER_COOKIE_NAME, token,
-        expires=datetime.now(timezone.utc) + timedelta(days=db.REMEMBER_TOKEN_DAYS),
-    )
+    _set_remember_cookie(token)
     return True
 
 
 def logout() -> None:
-    """Déconnexion EXPLICITE : révoque le jeton persistant (ce navigateur ne se reconnectera plus tout seul) et vide la session."""
-    token = _get_cookie_controller().get(REMEMBER_COOKIE_NAME)
+    """Déconnexion EXPLICITE : révoque le jeton persistant (ce navigateur ne se reconnectera plus tout seul) et supprime le cookie."""
+    token = st.context.cookies.get(REMEMBER_COOKIE_NAME)
     if token:
         db.revoke_remember_token(token)
-    _get_cookie_controller().remove(REMEMBER_COOKIE_NAME)
+    _clear_remember_cookie()
     _clear_session_state()
+    # Court délai avant le st.rerun() qui suit ce clic côté appelant, pour
+    # laisser au navigateur le temps d'appliquer la suppression du cookie
+    # (filet de sécurité contre une course écriture JS / rerun, signalée
+    # par la communauté pour ce type de composant).
+    time.sleep(0.3)
 
 
 # ---------------------------------------------------------------------------
