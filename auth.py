@@ -50,10 +50,31 @@ def current_user_id() -> int | None:
     return st.session_state.get("auth_user_id")
 
 
+def _clear_session_state() -> None:
+    """
+    Vide TOUT st.session_state, pas seulement les clés auth_* — utilisé à
+    la connexion et à la déconnexion.
+
+    Pourquoi : certaines pages gardent en cache, dans st.session_state, des
+    données propres à la personne connectée (ex : « Mes menus » garde le
+    détail de la liste ouverte, y compris si elle en est propriétaire).
+    Sans ce nettoyage, se déconnecter puis se reconnecter avec un AUTRE
+    compte dans le même onglet de navigateur pouvait laisser resurgir des
+    données de l'ancien compte (st.session_state persiste tant que l'onglet
+    reste ouvert, un changement de compte ne le réinitialise pas tout
+    seul). Un widget qui perd son état reprend simplement sa valeur par
+    défaut au prochain rerun — sans conséquence, contrairement à une fuite
+    de données entre deux comptes.
+    """
+    for key in list(st.session_state.keys()):
+        del st.session_state[key]
+
+
 def login(username: str, password: str) -> bool:
     user = db.verify_credentials(username, password)
     if user is None:
         return False
+    _clear_session_state()
     st.session_state["auth_user"] = user["username"]
     st.session_state["auth_user_id"] = user["id"]
     st.session_state["auth_is_editor"] = user["is_editor"]
@@ -63,11 +84,7 @@ def login(username: str, password: str) -> bool:
 
 
 def logout() -> None:
-    for key in (
-        "auth_user", "auth_user_id", "auth_is_editor", "auth_is_admin",
-        "auth_can_manage_products",
-    ):
-        st.session_state.pop(key, None)
+    _clear_session_state()
 
 
 # ---------------------------------------------------------------------------
