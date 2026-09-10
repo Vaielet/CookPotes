@@ -1,6 +1,10 @@
-streamlit
+streamlit[auth]>=1.58.0
+# Authlib>=1.6.6 casse st.login() (400: 'NoneType' object does not support
+# item assignment) — bug confirmé par la communauté Streamlit, corrigé en
+# figeant Authlib en dessous de cette version. À retirer si/quand
+# Streamlit publie un correctif officiel et que vous mettez à jour.
+Authlib<1.6.6
 pillow
 reportlab
 sqlalchemy
 psycopg2-binary
-streamlit-cookies-controller

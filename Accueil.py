@@ -41,6 +41,14 @@ st.set_page_config(
     layout="wide",
 )
 
+# Deuxième étape de la déconnexion fédérée (voir auth._auth0_logout_url) :
+# après avoir terminé la session Auth0, Auth0 redirige ici avec
+# ?do_logout=1 — on termine alors la déconnexion côté CookPotes.
+# Doit s'exécuter tout en haut, avant tout autre rendu.
+if st.query_params.get("do_logout") == "1":
+    st.query_params.clear()
+    auth.logout()
+
 
 def home_page() -> None:
     db.init_db()
@@ -164,9 +172,20 @@ pg = st.navigation(pages, position="hidden")
 # --- CONVERSION DU LOGO (mise en cache : voir common.image_data_uri) ---
 logo_b64 = common.image_data_uri("images/CookPotes_logo_transparent.png", max_dimension=500)
 
+def _vspace(n: int = 1) -> None:
+    """
+    Petit espace vertical, universellement compatible avec toutes les
+    versions de Streamlit (st.space("small"/"medium"/"stretch") est une
+    fonctionnalité très récente, absente des versions plus anciennes —
+    d'où l'AttributeError si elle n'est pas encore disponible chez vous).
+    """
+    for _ in range(n):
+        st.write("")
+
+
 # --- SIDEBAR ---
 with st.sidebar:
-    st.space(2)
+    _vspace(2)
     
     # Injection du logo en HTML/Base64 (100% natif, centré, sans overlay Streamlit)
     st.markdown(
@@ -178,7 +197,7 @@ with st.sidebar:
         unsafe_allow_html=True
     )
     
-    st.space(1)
+    _vspace(1)
     st.divider()
 
     # Reste de votre navigation

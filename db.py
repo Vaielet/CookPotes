@@ -32,6 +32,7 @@ de test qui a validé cette connexion.
 from __future__ import annotations
 
 import hashlib
+import re
 import secrets
 from contextlib import contextmanager
 from datetime import datetime, timedelta, timezone
@@ -265,6 +266,24 @@ def init_db() -> None:
     _seed_default_products_if_empty()
 
 
+def _derive_unique_nickname(conn, base: str) -> str:
+    """
+    Dérive un pseudo à partir d'une base (ex: la partie avant @ d'un
+    email), en ne gardant que des caractères simples, et en garantissant
+    l'unicité (insensible à la casse) face aux pseudos déjà pris — en
+    ajoutant un suffixe numérique si besoin.
+    """
+    cleaned = re.sub(r"[^a-zA-Z0-9_\-]", "", base or "").strip("_-") or "cuisinier"
+    candidate = cleaned
+    suffix = 1
+    while conn.execute(
+        text("SELECT 1 FROM users WHERE LOWER(username) = LOWER(:u)"), {"u": candidate}
+    ).first() is not None:
+        suffix += 1
+        candidate = f"{cleaned}{suffix}"
+    return candidate
+
+
 def _migrate_schema() -> None:
     """Ajoute les colonnes introduites après la version initiale, si absentes."""
     with get_conn() as conn:
@@ -301,6 +320,40 @@ def _migrate_schema() -> None:
         # inconnu est tapé. Pas d'effet si déjà migré (IF EXISTS-like via
         # un DO simple, silencieux si la contrainte n'existe plus).
         conn.execute(text("ALTER TABLE products ALTER COLUMN category DROP NOT NULL"))
+
+        # Passage à Auth0 (st.login()) : `username` servait jusqu'ici à la
+        # fois d'identifiant technique (= l'email Auth0) ET de nom affiché
+        # partout dans l'appli (partage de menus, "ajouté par"...). On
+        # sépare les deux : `email` devient la clé technique interne, JAMAIS
+        # affichée, et `username` redevient un pseudo librement choisi.
+        conn.execute(text("ALTER TABLE users ADD COLUMN IF NOT EXISTS email TEXT"))
+        conn.execute(
+            text("UPDATE users SET email = username WHERE email IS NULL")
+        )
+        # Unicité insensible à la casse sur l'email (comme pour username),
+        # via un index plutôt qu'une contrainte : CREATE ... IF NOT EXISTS
+        # est idempotent nativement en PostgreSQL, contrairement à ADD
+        # CONSTRAINT qui n'a pas d'équivalent "IF NOT EXISTS" propre.
+        conn.execute(text("""
+            CREATE UNIQUE INDEX IF NOT EXISTS users_email_unique_idx
+            ON users (LOWER(email)) WHERE email IS NOT NULL
+        """))
+
+        # Comptes créés AVANT cette migration : leur pseudo est encore leur
+        # email en clair (comportement de l'ancien système). On leur
+        # attribue automatiquement un pseudo dérivé, pour que l'email cesse
+        # d'apparaître dans l'appli dès cette migration, sans action requise
+        # de leur part (ils pourront toujours le personnaliser ensuite).
+        stale_rows = conn.execute(
+            text("SELECT id, username FROM users WHERE username = email")
+        ).mappings().all()
+        for row in stale_rows:
+            base = row["username"].split("@")[0] if "@" in row["username"] else row["username"]
+            nickname = _derive_unique_nickname(conn, base)
+            conn.execute(
+                text("UPDATE users SET username = :nickname WHERE id = :id"),
+                {"nickname": nickname, "id": row["id"]},
+            )
 
 
 def _seed_default_recipes_if_empty() -> None:
@@ -957,6 +1010,82 @@ def get_user_by_username(username: str) -> dict | None:
             {"username": (username or "").strip()},
         ).mappings().first()
     return {"id": row["id"], "username": row["username"]} if row else None
+
+
+def get_or_create_user_by_email(email: str) -> dict:
+    """
+    Authentification via Auth0 (st.login(), voir auth.py) : retrouve le
+    compte associé à cet email (colonne `email`, interne — jamais
+    affichée) ou en crée un nouveau à la volée au tout premier login
+    (statut éditeur·rice par défaut, comme l'ancienne inscription
+    identifiant/mot de passe).
+
+    Au premier login, un pseudo est dérivé automatiquement de la partie
+    avant @ de l'email (ex: "jean.dupont@exemple.com" -> "jeandupont"),
+    modifiable ensuite via update_username(). C'est ce pseudo — jamais
+    l'email — qui est utilisé partout ailleurs dans l'appli : partage de
+    menus (add_list_share cherche par username), "ajouté par" sur les
+    recettes, affichage dans la sidebar, etc.
+    """
+    email = (email or "").strip()
+    with get_conn() as conn:
+        row = conn.execute(
+            text("SELECT * FROM users WHERE LOWER(email) = LOWER(:email)"),
+            {"email": email},
+        ).mappings().first()
+
+        if row is not None:
+            return {
+                "id": row["id"],
+                "username": row["username"],
+                "is_editor": bool(row["is_editor"]),
+                "is_admin": bool(row["is_admin"]),
+                "can_manage_products": bool(row["can_manage_products"]),
+            }
+
+        base = email.split("@")[0] if "@" in email else email
+        nickname = _derive_unique_nickname(conn, base)
+
+        # La colonne password_hash/salt reste NOT NULL en base pour ne pas
+        # casser le schéma existant, mais n'est plus jamais consultée pour
+        # ces comptes — l'authentification passe désormais par Auth0, pas
+        # par verify_credentials(). On y met donc un jeton aléatoire à
+        # haute entropie, jamais communiqué à personne (ne sert à rien de
+        # le "casser", il ne débloque rien).
+        digest_hex, salt_hex = _hash_password(secrets.token_urlsafe(32))
+        new_id = conn.execute(
+            text("""
+                INSERT INTO users
+                (username, email, password_hash, salt, is_editor, is_admin, can_manage_products)
+                VALUES
+                (:username, :email, :password_hash, :salt, TRUE, FALSE, FALSE)
+                RETURNING id
+            """),
+            {"username": nickname, "email": email, "password_hash": digest_hex, "salt": salt_hex},
+        ).scalar()
+
+    _clear_user_caches()
+    return {
+        "id": new_id, "username": nickname,
+        "is_editor": True, "is_admin": False, "can_manage_products": False,
+    }
+
+
+def update_username(user_id: int, new_username: str) -> None:
+    """
+    Change le pseudo affiché d'un compte (jamais l'email, qui reste fixe
+    et invisible). Lève db.IntegrityError si ce pseudo est déjà pris par
+    un autre compte (contrainte d'unicité déjà existante sur `username`).
+    """
+    new_username = (new_username or "").strip()
+    if not new_username:
+        raise ValueError("Le pseudo ne peut pas être vide.")
+    with get_conn() as conn:
+        conn.execute(
+            text("UPDATE users SET username = :username WHERE id = :id"),
+            {"username": new_username, "id": user_id},
+        )
+    _clear_user_caches()
 
 
 def set_user_role(user_id: int, is_editor: bool, is_admin: bool, can_manage_products: bool | None = None) -> None:
