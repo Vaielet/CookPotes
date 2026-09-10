@@ -33,7 +33,6 @@ import streamlit as st
 import auth
 import common
 import db
-import base64
 
 
 st.set_page_config(
@@ -42,12 +41,6 @@ st.set_page_config(
     layout="wide",
 )
 
-def get_image_base64(file_path):
-    """Convertit une image locale en chaîne Base64."""
-    with open(file_path, "rb") as f:
-        data = f.read()
-    return base64.b64encode(data).decode("utf-8")
-
 
 def home_page() -> None:
     db.init_db()
@@ -55,14 +48,14 @@ def home_page() -> None:
 
     #common.header_logo()
 
-    # --- CONVERSION DU LOGO ---
-    logo_with_subtitle_b64 = get_image_base64("images/CookPotes_logo_with_subtitle.png")
+    # --- CONVERSION DU LOGO (mise en cache : voir common.image_data_uri) ---
+    logo_with_subtitle_b64 = common.image_data_uri("images/CookPotes_logo_with_subtitle.png", max_dimension=900)
 
     # Injection du logo en HTML/Base64 (100% natif, centré, sans overlay Streamlit)
     st.markdown(
         f"""
         <div style="display: flex; justify-content: center; align-items: center; width: 100%;">
-            <img src="data:image/png;base64,{logo_with_subtitle_b64}" style="width: 60%; max-width: 300px; height: auto;">
+            <img src="{logo_with_subtitle_b64}" style="width: 60%; max-width: 300px; height: auto;">
         </div>
         """,
         unsafe_allow_html=True
@@ -168,8 +161,8 @@ if auth.can_manage_products():
 pg = st.navigation(pages, position="hidden")
 
 
-# --- CONVERSION DU LOGO ---
-logo_b64 = get_image_base64("images/CookPotes_logo_transparent.png")
+# --- CONVERSION DU LOGO (mise en cache : voir common.image_data_uri) ---
+logo_b64 = common.image_data_uri("images/CookPotes_logo_transparent.png", max_dimension=500)
 
 # --- SIDEBAR ---
 with st.sidebar:
@@ -179,7 +172,7 @@ with st.sidebar:
     st.markdown(
         f"""
         <div style="display: flex; justify-content: center; align-items: center; width: 100%;">
-            <img src="data:image/png;base64,{logo_b64}" style="width: 60%; max-width: 160px; height: auto;">
+            <img src="{logo_b64}" style="width: 60%; max-width: 160px; height: auto;">
         </div>
         """,
         unsafe_allow_html=True

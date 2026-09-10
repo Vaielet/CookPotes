@@ -103,6 +103,41 @@ def header_logo():
 ICONS_DIR = Path(__file__).parent / "images" / "icons"
 
 
+@st.cache_data(show_spinner=False)
+def image_data_uri(path: str, max_dimension: int | None = None) -> str:
+    """
+    Encode une image en data URI base64 (utilisable directement dans un
+    <img src="..."> ou une règle CSS background-image).
+
+    Mis en cache par Streamlit : le calcul (lecture disque + encodage) ne
+    se fait qu'UNE SEULE fois par fichier, pas à chaque rerun. C'est
+    important ici car Streamlit réexécute tout le script à chaque
+    interaction, sur N'IMPORTE QUELLE page (le menu de la sidebar, par
+    exemple, s'exécute à chaque clic peu importe où) — sans cache, une
+    image un peu lourde était relue et ré-encodée en continu, ce qui
+    ralentissait perceptiblement toute l'appli.
+
+    `max_dimension`, si fourni, redimensionne l'image (plus grand côté)
+    AVANT l'encodage — utile pour une icône affichée à 20-30px : inutile
+    d'embarquer un fichier de plusieurs centaines de Ko dans le HTML pour
+    un rendu aussi petit. Protège aussi contre un fichier source oublié
+    trop lourd, quelle que soit sa taille d'origine.
+    """
+    raw = Path(path).read_bytes()
+    mime = mimetypes.guess_type(path)[0] or "image/png"
+
+    if max_dimension:
+        img = Image.open(io.BytesIO(raw))
+        img_format = img.format or "PNG"
+        img.thumbnail((max_dimension, max_dimension))
+        buffer = io.BytesIO()
+        img.save(buffer, format=img_format)
+        raw = buffer.getvalue()
+        mime = f"image/{img_format.lower()}"
+
+    return f"data:{mime};base64,{base64.b64encode(raw).decode()}"
+
+
 def slug(name: str) -> str:
     """Transforme un nom en identifiant sûr pour une clé de container /
     classe CSS (lettres, chiffres, tirets seulement)."""
@@ -144,11 +179,14 @@ def icon_css(
     l'ancien réglage fixe `1.4em` / 26px).
     """
     if icon_path.exists():
-        mime = mimetypes.guess_type(icon_path.name)[0] or "image/png"
-        b64 = base64.b64encode(icon_path.read_bytes()).decode()
+        # max_dimension=128 : large marge au-dessus de `size` (26px par
+        # défaut) pour rester net sur les écrans haute densité (Retina...),
+        # tout en bornant le poids embarqué même si le fichier source est
+        # beaucoup plus gros que nécessaire.
+        data_uri = image_data_uri(str(icon_path), max_dimension=128)
         before_content = f"""
             content: "";
-            background-image: url("data:{mime};base64,{b64}");
+            background-image: url("{data_uri}");
             background-size: contain;
             background-repeat: no-repeat;
             background-position: center;
