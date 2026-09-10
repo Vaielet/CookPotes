@@ -193,7 +193,7 @@ if view == "results":
 
     # --- Enregistrement sur le compte (concerne les deux blocs ci-dessus) ---
     if auth.is_logged_in():
-        if st.button("💾 Enregistrer cette liste dans mon compte", type="primary", use_container_width=True):
+        if st.button("💾 Enregistrer ce menu dans mon compte", type="primary", use_container_width=True):
             try:
                 db.save_shopping_list(
                     user_id=auth.current_user_id(),
@@ -206,7 +206,7 @@ if view == "results":
                 st.page_link("pages/5_Mes_menus.py", label="📋 Aller à Mes menus", icon="📋")
             else:
                 st.success(
-                    "Menu ! Retrouve-le, coche les articles au fur "
+                    "Menu enregistré ! Retrouve-le, coche les articles au fur "
                     "et à mesure de tes courses, et affiche tes recettes sur la page « 📋 Mes menus »."
                 )
                 st.page_link("pages/5_Mes_menus.py", label="📋 Aller à Mes menus", icon="📋")
