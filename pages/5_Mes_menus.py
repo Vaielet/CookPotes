@@ -99,14 +99,22 @@ def _load_list_detail(list_id: int, user_id: int) -> dict | None:
     _toggle_item, qui met à jour cette copie directement en mémoire au lieu
     de recharger). Un changement de liste sélectionnée, ou une nouvelle
     session/rechargement de page, repart sur des données fraîches.
+
+    La vérification inclut aussi `user_id` (pas seulement `list_id`) : sans
+    ça, si deux comptes différents se connectent l'un après l'autre dans le
+    même onglet (auth.login/logout vident désormais st.session_state pour
+    cette raison — voir auth.py), une copie mise en cache pour le premier
+    compte pourrait être renvoyée par erreur au second s'ils ouvrent la
+    même liste partagée. Double sécurité, peu coûteuse.
     """
     cache_key = "_list_detail_cache"
     cached = st.session_state.get(cache_key)
-    if cached is not None and cached["id"] == list_id:
+    if cached is not None and cached["id"] == list_id and cached.get("_cached_for_user_id") == user_id:
         return cached
 
     fresh = db.get_saved_list(list_id, user_id)
     if fresh is not None:
+        fresh["_cached_for_user_id"] = user_id
         st.session_state[cache_key] = fresh
     return fresh
 
