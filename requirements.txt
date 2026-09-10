@@ -3,3 +3,4 @@ pillow
 reportlab
 sqlalchemy
 psycopg2-binary
+streamlit-cookies-controller
