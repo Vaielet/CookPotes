@@ -34,7 +34,7 @@ from __future__ import annotations
 import hashlib
 import secrets
 from contextlib import contextmanager
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
 import streamlit as st
 from sqlalchemy import bindparam, create_engine, text
@@ -248,6 +248,15 @@ def init_db() -> None:
                 user_id     INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
                 created_at  TEXT NOT NULL,
                 UNIQUE (list_id, user_id)
+            )
+        """))
+        conn.execute(text("""
+            CREATE TABLE IF NOT EXISTS remember_tokens (
+                id          SERIAL PRIMARY KEY,
+                user_id     INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+                token_hash  TEXT UNIQUE NOT NULL,
+                created_at  TEXT NOT NULL,
+                expires_at  TEXT NOT NULL
             )
         """))
     _migrate_schema()
@@ -1435,3 +1444,104 @@ def remove_list_share(list_id: int, requesting_user_id: int, target_user_id: int
     if deleted:
         _clear_saved_list_caches()
     return deleted
+
+
+# ---------------------------------------------------------------------------
+# Jetons "garde-moi connecté·e" (connexion persistante via cookie navigateur)
+# ---------------------------------------------------------------------------
+#
+# Sans ceci, une personne connectée est déconnectée dès que sa session
+# Streamlit redémarre — ce qui arrive après quelques minutes d'inactivité
+# (verrouillage du téléphone, changement d'onglet...) : la reconnexion du
+# WebSocket sous-jacent démarre une NOUVELLE session Streamlit, qui vide
+# st.session_state, même si le navigateur reste ouvert sur la même page.
+#
+# Le jeton lui-même (une chaîne aléatoire à haute entropie, 32 octets) est
+# stocké dans un cookie navigateur longue durée ; seul son HASH est
+# conservé ici, jamais le jeton en clair — comme pour un mot de passe, sauf
+# qu'un hash rapide (SHA-256) suffit ici : ce n'est pas un secret choisi
+# par un humain (donc pas de risque d'attaque par dictionnaire), juste un
+# jeton opaque à haute entropie qu'on veut pouvoir vérifier rapidement à
+# CHAQUE page vue.
+
+REMEMBER_TOKEN_DAYS = 30
+
+
+def create_remember_token(user_id: int, days: int = REMEMBER_TOKEN_DAYS) -> str:
+    """
+    Crée un jeton "garde-moi connecté·e" pour ce compte et le renvoie EN
+    CLAIR (à poser dans un cookie navigateur côté appelant — seul son hash
+    est conservé en base, le jeton en clair n'est jamais stocké nulle part
+    côté serveur).
+    """
+    raw_token = secrets.token_urlsafe(32)
+    token_hash = hashlib.sha256(raw_token.encode("utf-8")).hexdigest()
+    now = _now_iso()
+    expires_at = (datetime.now(timezone.utc) + timedelta(days=days)).isoformat(timespec="seconds")
+
+    with get_conn() as conn:
+        # Petit ménage opportuniste : les jetons déjà expirés de CE compte
+        # sont purgés à chaque nouvelle connexion, plutôt que de s'accumuler
+        # indéfiniment (ex. cookie effacé manuellement par la personne sans
+        # jamais cliquer sur "Se déconnecter").
+        conn.execute(
+            text("DELETE FROM remember_tokens WHERE user_id = :user_id AND expires_at < :now"),
+            {"user_id": user_id, "now": now},
+        )
+        conn.execute(
+            text("""
+                INSERT INTO remember_tokens (user_id, token_hash, created_at, expires_at)
+                VALUES (:user_id, :token_hash, :created_at, :expires_at)
+            """),
+            {"user_id": user_id, "token_hash": token_hash, "created_at": now, "expires_at": expires_at},
+        )
+    return raw_token
+
+
+def verify_remember_token(raw_token: str) -> dict | None:
+    """
+    Vérifie un jeton "garde-moi connecté·e" (reçu du cookie navigateur).
+    Renvoie les informations du compte (même forme que verify_credentials)
+    s'il est valide et non expiré, sinon None. Un jeton expiré est supprimé
+    au passage (nettoyage à l'usage, pas besoin de tâche planifiée séparée).
+    """
+    if not raw_token:
+        return None
+
+    token_hash = hashlib.sha256(raw_token.encode("utf-8")).hexdigest()
+    with get_conn() as conn:
+        row = conn.execute(
+            text("""
+                SELECT rt.id AS token_id, rt.expires_at, u.*
+                FROM remember_tokens rt
+                JOIN users u ON u.id = rt.user_id
+                WHERE rt.token_hash = :token_hash
+            """),
+            {"token_hash": token_hash},
+        ).mappings().first()
+
+        if row is None:
+            return None
+
+        if row["expires_at"] < _now_iso():
+            conn.execute(text("DELETE FROM remember_tokens WHERE id = :id"), {"id": row["token_id"]})
+            return None
+
+    # `u.*` inclut la colonne `id` de l'utilisateur (sans alias) : c'est
+    # bien l'id du COMPTE ici, pas celui du jeton (qui est "token_id").
+    return {
+        "id": row["id"],
+        "username": row["username"],
+        "is_editor": bool(row["is_editor"]),
+        "is_admin": bool(row["is_admin"]),
+        "can_manage_products": bool(row["can_manage_products"]),
+    }
+
+
+def revoke_remember_token(raw_token: str) -> None:
+    """Invalide un jeton "garde-moi connecté·e" (à la déconnexion) — ce navigateur ne se reconnectera plus tout seul."""
+    if not raw_token:
+        return
+    token_hash = hashlib.sha256(raw_token.encode("utf-8")).hexdigest()
+    with get_conn() as conn:
+        conn.execute(text("DELETE FROM remember_tokens WHERE token_hash = :token_hash"), {"token_hash": token_hash})

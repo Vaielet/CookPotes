@@ -3,22 +3,47 @@ auth.py — Authentification légère basée sur la base de données (db.py).
 
 Limitations à connaître :
 - La session est stockée dans st.session_state, propre à chaque onglet /
-  session de navigateur Streamlit. Un rechargement complet de la page ou
-  une nouvelle session de navigateur déconnecte l'utilisateur (Streamlit
-  n'offre pas nativement de cookie de session persistant sans bibliothèque
-  tierce). C'est suffisant pour un usage interne à une famille / petite
-  équipe, mais pas pour une authentification "entreprise".
+  session de navigateur Streamlit. Sans mesure particulière, un
+  rechargement complet de la page — ou même juste une reconnexion du
+  WebSocket sous-jacent après quelques minutes d'inactivité (téléphone
+  verrouillé, onglet en arrière-plan...), un cas très fréquent sur
+  Streamlit Cloud — démarre une NOUVELLE session Streamlit et vide
+  st.session_state, déconnectant la personne malgré elle.
+- Pour éviter ça, on pose un cookie navigateur "garde-moi connecté·e"
+  (voir REMEMBER_COOKIE_NAME plus bas, via streamlit-cookies-controller) :
+  un jeton longue durée (30 jours), dont seul le hash est stocké côté
+  serveur (db.remember_tokens). À chaque page vue où la session semble
+  perdue, on vérifie ce cookie et on restaure la connexion silencieusement
+  si le jeton est valide — voir _restore_session_from_cookie(). Le jeton
+  est révoqué (et le cookie supprimé) uniquement à la déconnexion
+  explicite, ou à expiration naturelle (30 jours).
 - Les mots de passe sont hachés (PBKDF2-SHA256 salé) avant stockage, jamais
   conservés en clair.
 """
 
 from __future__ import annotations
 
+from datetime import datetime, timedelta, timezone
+
 import streamlit as st
+from streamlit_cookies_controller import CookieController
 
 import db
 
 import common
+
+REMEMBER_COOKIE_NAME = "cookpotes_remember_token"
+
+
+def _get_cookie_controller() -> CookieController:
+    """
+    Une nouvelle instance à chaque appel, comme dans tous les exemples de
+    la bibliothèque : ce n'est pas une ressource serveur à partager entre
+    utilisateur·rices (contrairement à @st.cache_resource ailleurs dans
+    l'appli), juste un pont vers les cookies du navigateur de LA session
+    Streamlit en cours.
+    """
+    return CookieController()
 
 
 # ---------------------------------------------------------------------------
@@ -50,6 +75,15 @@ def current_user_id() -> int | None:
     return st.session_state.get("auth_user_id")
 
 
+def _apply_session(user: dict) -> None:
+    """Pose dans st.session_state les clés auth_* à partir d'un dict utilisateur (verify_credentials ou verify_remember_token)."""
+    st.session_state["auth_user"] = user["username"]
+    st.session_state["auth_user_id"] = user["id"]
+    st.session_state["auth_is_editor"] = user["is_editor"]
+    st.session_state["auth_is_admin"] = user["is_admin"]
+    st.session_state["auth_can_manage_products"] = user["can_manage_products"]
+
+
 def _clear_session_state() -> None:
     """
     Vide TOUT st.session_state, pas seulement les clés auth_* — utilisé à
@@ -70,20 +104,60 @@ def _clear_session_state() -> None:
         del st.session_state[key]
 
 
+def _restore_session_from_cookie() -> None:
+    """
+    Si la session en mémoire a été perdue (voir docstring du module) mais
+    qu'un cookie "garde-moi connecté·e" valide est toujours présent dans le
+    navigateur, restaure silencieusement la connexion — sans redemander
+    l'identifiant/mot de passe. Ne fait rien si déjà connecté·e, ou si
+    aucun cookie valide n'est présent.
+
+    Limite connue : juste après l'ouverture d'un tout nouvel onglet/
+    fenêtre (pas juste une reconnexion en cours de session), le composant
+    cookie peut avoir besoin d'un aller-retour avant que Python ne "voie"
+    le cookie existant — dans ce cas précis, un premier rerun peut encore
+    montrer l'écran de connexion avant que la restauration silencieuse ne
+    s'applique. Sans conséquence dans le cas visé ici (perte de session en
+    cours d'usage), qui est le problème réellement rencontré.
+    """
+    if is_logged_in():
+        return
+
+    token = _get_cookie_controller().get(REMEMBER_COOKIE_NAME)
+    if not token:
+        return
+
+    user = db.verify_remember_token(token)
+    if user is None:
+        # Jeton expiré ou révoqué : on nettoie le cookie périmé côté navigateur.
+        _get_cookie_controller().remove(REMEMBER_COOKIE_NAME)
+        return
+
+    _apply_session(user)
+
+
 def login(username: str, password: str) -> bool:
     user = db.verify_credentials(username, password)
     if user is None:
         return False
     _clear_session_state()
-    st.session_state["auth_user"] = user["username"]
-    st.session_state["auth_user_id"] = user["id"]
-    st.session_state["auth_is_editor"] = user["is_editor"]
-    st.session_state["auth_is_admin"] = user["is_admin"]
-    st.session_state["auth_can_manage_products"] = user["can_manage_products"]
+    _apply_session(user)
+
+    # Pose le cookie "garde-moi connecté·e" — voir docstring du module.
+    token = db.create_remember_token(user["id"])
+    _get_cookie_controller().set(
+        REMEMBER_COOKIE_NAME, token,
+        expires_at=datetime.now(timezone.utc) + timedelta(days=db.REMEMBER_TOKEN_DAYS),
+    )
     return True
 
 
 def logout() -> None:
+    """Déconnexion EXPLICITE : révoque le jeton persistant (ce navigateur ne se reconnectera plus tout seul) et vide la session."""
+    token = _get_cookie_controller().get(REMEMBER_COOKIE_NAME)
+    if token:
+        db.revoke_remember_token(token)
+    _get_cookie_controller().remove(REMEMBER_COOKIE_NAME)
     _clear_session_state()
 
 
@@ -93,6 +167,7 @@ def logout() -> None:
 
 def render_sidebar_auth() -> None:
     """Affiche le statut de connexion, et le formulaire de connexion/déconnexion, dans la sidebar."""
+    _restore_session_from_cookie()
     with st.sidebar:
         if is_logged_in():
             if is_admin():
