@@ -147,7 +147,7 @@ def login(username: str, password: str) -> bool:
     token = db.create_remember_token(user["id"])
     _get_cookie_controller().set(
         REMEMBER_COOKIE_NAME, token,
-        expires_at=datetime.now(timezone.utc) + timedelta(days=db.REMEMBER_TOKEN_DAYS),
+        expires=datetime.now(timezone.utc) + timedelta(days=db.REMEMBER_TOKEN_DAYS),
     )
     return True
 
