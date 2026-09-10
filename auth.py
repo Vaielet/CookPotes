@@ -19,34 +19,35 @@ Limitations à connaître :
 - LECTURE du cookie : via st.context.cookies, l'API *native* de Streamlit
   (lit directement l'en-tête HTTP "Cookie" de la requête qui a chargé la
   page — donc toujours à jour dès le tout premier rendu du script, sans
-  aller-retour asynchrone). Une première implémentation lisait le cookie
-  via le composant tiers streamlit-cookies-controller, dont la valeur
-  retournée s'est révélée pas toujours fiable après une fermeture
-  complète du navigateur (composant pas encore "chargé" au premier rendu)
-  — un problème documenté par plusieurs personnes pour cette bibliothèque
-  : https://discuss.streamlit.io/t/new-component-streamlit-cookies-controller/64251
+  aller-retour asynchrone, et sans dépendance externe).
 - ÉCRITURE du cookie : Streamlit ne permet pas encore de poser un cookie
-  depuis Python (voir streamlit/streamlit#9421, toujours ouvert) — on
-  passe donc par streamlit-cookies-controller UNIQUEMENT pour set(), à la
-  connexion et à la déconnexion. On n'utilise PAS sa méthode remove() :
-  son code source (__getOptions) fait par erreur pointer la date
-  d'expiration par défaut vers DEMAIN plutôt que vers le passé quand
-  aucune date n'est fournie, ce qui explique que remove() ne supprime pas
-  fiablement le cookie (autre problème documenté sur ce même fil). On
-  supprime donc le cookie "à la main", en appelant set() avec une date
-  d'expiration explicitement passée — la manière standard de supprimer un
-  cookie, quel que soit l'outil utilisé.
+  depuis Python (voir streamlit/streamlit#9421, toujours ouvert). Deux
+  bibliothèques tierces ont été essayées avant ce fichier
+  (streamlit-cookies-controller, puis son approche corrigée) sans succès
+  fiable : leurs composants s'exécutent dans un <iframe> sandboxé, et tout
+  porte à croire qu'elles y écrivent le cookie dans le DOCUMENT DE
+  L'IFRAME plutôt que dans celui de la page principale — un piège classique
+  et documenté de l'écosystème des composants Streamlit. Le cookie
+  "semble" se poser (aucune erreur), mais n'existe jamais vraiment pour
+  l'application.
+
+  Solution retenue ici : on écrit nous-mêmes le script JS minimal, via
+  st.components.v1.html(), en ciblant explicitement `window.top.document`
+  plutôt que `document` — ce qui, dans un iframe same-origin (le cas de
+  tous les composants Streamlit), écrit bien sur le document de la page
+  PRINCIPALE. Aucune bibliothèque tierce, aucun fournisseur externe.
 - Les mots de passe sont hachés (PBKDF2-SHA256 salé) avant stockage, jamais
   conservés en clair.
 """
 
 from __future__ import annotations
 
+import json
 import time
 from datetime import datetime, timedelta, timezone
 
 import streamlit as st
-from streamlit_cookies_controller import CookieController
+import streamlit.components.v1 as components
 
 import db
 
@@ -55,28 +56,47 @@ import common
 REMEMBER_COOKIE_NAME = "cookpotes_remember_token"
 
 
-def _get_cookie_controller() -> CookieController:
+def _set_cookie_via_js(name: str, value: str, expires: datetime) -> None:
     """
-    Une nouvelle instance à chaque appel, comme dans tous les exemples de
-    la bibliothèque : ce n'est pas une ressource serveur à partager entre
-    utilisateur·rices (contrairement à @st.cache_resource ailleurs dans
-    l'appli), juste un pont vers les cookies du navigateur de LA session
-    Streamlit en cours. Utilisée UNIQUEMENT pour écrire (set) — jamais
-    pour lire, voir docstring du module.
+    Pose un cookie sur la page PRINCIPALE en ciblant explicitement
+    `window.top.document.cookie` plutôt que `document.cookie` — voir la
+    docstring du module pour pourquoi c'est nécessaire (isolation des
+    composants Streamlit dans un iframe). `json.dumps` sécurise
+    l'intégration de `name`/`value` dans le script (échappement correct
+    des guillemets), même si ce sont en pratique toujours des chaînes
+    opaques sans caractère spécial (jeton aléatoire, nom de cookie fixe).
     """
-    return CookieController()
+    expires_str = expires.strftime("%a, %d %b %Y %H:%M:%S GMT")
+    js_name = json.dumps(name)
+    js_value = json.dumps(value)
+    js_expires = json.dumps(expires_str)
+    components.html(
+        f"""
+        <script>
+            (function () {{
+                var secure = (window.top.location.protocol === "https:") ? "; Secure" : "";
+                window.top.document.cookie =
+                    {js_name} + "=" + encodeURIComponent({js_value}) +
+                    "; expires=" + {js_expires} +
+                    "; path=/; SameSite=Lax" + secure;
+            }})();
+        </script>
+        """,
+        height=0,
+        width=0,
+    )
 
 
 def _set_remember_cookie(token: str) -> None:
-    _get_cookie_controller().set(
+    _set_cookie_via_js(
         REMEMBER_COOKIE_NAME, token,
         expires=datetime.now(timezone.utc) + timedelta(days=db.REMEMBER_TOKEN_DAYS),
     )
 
 
 def _clear_remember_cookie() -> None:
-    """Supprime le cookie en écrasant sa valeur avec une date d'expiration passée (voir docstring du module — pas de .remove(), peu fiable)."""
-    _get_cookie_controller().set(
+    """Supprime le cookie en écrasant sa valeur avec une date d'expiration passée — la manière standard de supprimer un cookie."""
+    _set_cookie_via_js(
         REMEMBER_COOKIE_NAME, "",
         expires=datetime.now(timezone.utc) - timedelta(days=1),
     )
