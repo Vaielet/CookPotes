@@ -109,9 +109,9 @@ CookPotes, c'est l'application qui vient sauver tes soirées, ton portefeuille e
         # (min/max) sur smartphone — voir les notes détaillées dans
         # pages/2_Composer_mon_menu.py sur pourquoi chaque règle est là
         # (sélecteur stColumn, !important, media query...).
-        RECENT_CARD_WIDTH_PX = 320
-        RECENT_CARD_MIN_WIDTH_PX = 300
-        RECENT_CARD_MAX_WIDTH_PX = 380
+        RECENT_CARD_WIDTH_PX = 300
+        RECENT_CARD_MIN_WIDTH_PX = 280
+        RECENT_CARD_MAX_WIDTH_PX = 350
         RECENT_DESKTOP_BREAKPOINT_PX = 768
 
         st.markdown(
