@@ -541,7 +541,7 @@ with st.container(key="recipe_grid"):
             st.markdown(
                 '<div style="text-align:center; color:rgb(120,120,120); '
                 'font-size:0.9rem; margin-bottom:0.9em;">'
-                'Une recette qui mérite sa place ici ?</div>',
+                'Tu connais une recette qui mérite sa place ici ?</div>',
                 unsafe_allow_html=True,
             )
             if st.button(
