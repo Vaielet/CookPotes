@@ -342,7 +342,10 @@ if (search_query or tag_filter or author_filter) and not names:
 # nombre de cartes par ligne change (calculé par le navigateur via
 # flex-wrap, sans JS).
 GRID_COLUMNS = 4
-CARD_WIDTH_PX = 320
+CARD_WIDTH_PX = 320  # ordinateur : taille strictement fixe (ne rétrécit jamais)
+CARD_MIN_WIDTH_PX = 300  # smartphone : peut rétrécir jusqu'à cette largeur
+CARD_MAX_WIDTH_PX = 380  # smartphone : peut grandir jusqu'à cette largeur
+DESKTOP_BREAKPOINT_PX = 768  # au-delà : comportement "ordinateur" (taille fixe)
 # `!important` sur toutes ces règles : sur grand écran, Streamlit recalcule
 # et réapplique ses propres largeurs de colonnes (en style inline) à chaque
 # redimensionnement de fenêtre — un style inline gagne toujours face à une
@@ -365,6 +368,11 @@ CARD_WIDTH_PX = 320
 # le début). Tous les attributs internes de Streamlit sont préfixés "st"
 # (stElementContainer, stMarkdown, stHorizontalBlock...) — "column" seul
 # n'existe pas dans cette version.
+#
+# Comportement volontairement DIFFÉRENT selon la taille d'écran : taille de
+# carte strictement fixe sur ordinateur (jamais de rétrécissement), mais
+# souplesse min/max conservée sur smartphone (comme avant ce changement) —
+# géré via une media query CSS plutôt qu'une seule règle pour les deux.
 
 st.markdown(
     f"""
@@ -374,12 +382,24 @@ st.markdown(
         flex-wrap: wrap !important;
         row-gap: 1.5rem;
     }}
+
+    /* Smartphone (par défaut) : la carte peut rétrécir/grandir dans cet intervalle. */
     .st-key-recipe_grid div[data-testid="stColumn"] {{
         display: block !important;
-        flex: 0 0 {CARD_WIDTH_PX}px !important;
-        width: {CARD_WIDTH_PX}px !important;
-        min-width: {CARD_WIDTH_PX}px !important;
-        max-width: {CARD_WIDTH_PX}px !important;
+        flex: 1 1 {CARD_MIN_WIDTH_PX}px !important;
+        width: {CARD_MIN_WIDTH_PX}px !important;
+        min-width: {CARD_MIN_WIDTH_PX}px !important;
+        max-width: {CARD_MAX_WIDTH_PX}px !important;
+    }}
+
+    /* Ordinateur : taille strictement fixe, ne varie jamais. */
+    @media (min-width: {DESKTOP_BREAKPOINT_PX}px) {{
+        .st-key-recipe_grid div[data-testid="stColumn"] {{
+            flex: 0 0 {CARD_WIDTH_PX}px !important;
+            width: {CARD_WIDTH_PX}px !important;
+            min-width: {CARD_WIDTH_PX}px !important;
+            max-width: {CARD_WIDTH_PX}px !important;
+        }}
     }}
     </style>
     """,
