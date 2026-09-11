@@ -347,17 +347,23 @@ CARD_WIDTH_PX = 320
 # et réapplique ses propres largeurs de colonnes (en style inline) à chaque
 # redimensionnement de fenêtre — un style inline gagne toujours face à une
 # règle de feuille de style externe, quelle que soit sa précision, sauf à
-# forcer avec !important. Sans ça, le comportement fixe ne tenait que sur
-# mobile (où Streamlit n'applique pas ce recalcul dynamique).
+# forcer avec !important. `display: flex !important` sur le parent est
+# nécessaire en plus : sur certaines largeurs, Streamlit fait apparemment
+# passer ce conteneur en CSS Grid plutôt qu'en Flexbox — dans ce cas, TOUTES
+# les propriétés flex (flex-grow, flex-shrink, flex-basis) deviennent sans
+# effet, puisqu'elles ne s'appliquent qu'à l'intérieur d'un conteneur flex.
+# Sans ce forçage, le comportement fixe ne tenait que sur mobile.
 
 st.markdown(
     f"""
     <style>
     .st-key-recipe_grid div[data-testid="stHorizontalBlock"] {{
+        display: flex !important;
         flex-wrap: wrap !important;
         row-gap: 1.5rem;
     }}
     .st-key-recipe_grid div[data-testid="stHorizontalBlock"] > div[data-testid="column"] {{
+        display: block !important;
         flex: 0 0 {CARD_WIDTH_PX}px !important;
         width: {CARD_WIDTH_PX}px !important;
         min-width: {CARD_WIDTH_PX}px !important;
