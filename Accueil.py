@@ -29,7 +29,6 @@ page « Gestion des utilisateur·rices ».
 """
 
 import streamlit as st
-import streamlit.components.v1 as components
 
 import auth
 import common
@@ -48,16 +47,6 @@ st.set_page_config(
 # Doit s'exécuter tout en haut, avant tout autre rendu.
 if st.query_params.get("do_logout") == "1":
     st.query_params.clear()
-    # Tentative de fermeture automatique de CET onglet (celui ouvert par
-    # st.link_button, voir auth.py) pour revenir directement sur l'onglet
-    # d'origine, plutôt que de laisser deux onglets ouverts. Ça ne
-    # fonctionne QUE si le navigateur l'autorise — généralement le cas
-    # pour un onglet ouvert via un lien, ce qui est notre cas — mais sans
-    # aucune garantie selon le navigateur. Volontairement PAS bloquant :
-    # si le navigateur refuse, rien ne se passe et la suite s'exécute
-    # normalement (la déconnexion se termine quand même dans cet onglet,
-    # juste sans qu'il se referme tout seul).
-    components.html("<script>window.close();</script>", height=0, width=0)
     auth.logout()
 
 
