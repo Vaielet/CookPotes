@@ -410,7 +410,7 @@ with st.container(key="recipe_grid"):
     columns = []
     for i, name in enumerate(names):
         if i % GRID_COLUMNS == 0:
-            columns = st.columns(GRID_COLUMNS, gap="medium")
+            columns = st.columns(GRID_COLUMNS, gap="small")
         col = columns[i % GRID_COLUMNS]
 
         recipe = recipes[name]
