@@ -556,7 +556,7 @@ with st.container(key="recipe_grid"):
                 """
                 <style>
                 .st-key-add_recipe_tile_btn button {
-                    background-color: #FF5951;
+                    background-color: #ffbd3a;
                     color: white;
                     border: none;
                 }
