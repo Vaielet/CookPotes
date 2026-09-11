@@ -63,9 +63,11 @@ sessions sont bien terminées, dans le bon ordre.
 
 from __future__ import annotations
 
+import json
 from urllib.parse import quote
 
 import streamlit as st
+import streamlit.components.v1 as components
 
 import db
 
@@ -208,21 +210,23 @@ def render_sidebar_auth() -> None:
 
             logout_url = _auth0_logout_url()
             if logout_url:
-                # ATTENTION avant de retenter une version "même onglet" en
-                # HTML brut : deux tentatives (multi-lignes, puis une seule
-                # ligne) ont toutes les deux cassé le bouton en conditions
-                # réelles, pour une raison qui reste incertaine (impossible
-                # à déboguer sans accès à un vrai navigateur). st.link_button
-                # EST la version dont le fonctionnement a été confirmé — le
-                # nouvel onglet qu'il ouvre est une gêne cosmétique mineure,
-                # largement préférable à un bouton qui ne fait rien du tout.
-                st.link_button(
-                    "Se déconnecter", logout_url,
-                    use_container_width=True,
-                    help="Termine aussi la session ouverte côté Auth0, pas "
-                         "seulement dans CookPotes. S'ouvre dans un nouvel "
-                         "onglet — tu peux fermer l'ancien une fois la "
-                         "déconnexion confirmée.",
+                # Deux tentatives via st.markdown(unsafe_allow_html=True)
+                # (un <a> multi-lignes, puis sur une seule ligne) ont toutes
+                # les deux abouti à un bouton qui ne fonctionnait plus du
+                # tout, pour une raison qui reste incertaine sans accès à un
+                # vrai navigateur pour déboguer. On change de technique :
+                # st.components.v1.html(), avec un vrai <button> dont le
+                # clic déclenche `window.top.location.href = ...` en JS —
+                # exactement la méthode qui avait déjà fait ses preuves
+                # dans cette appli pour écrire un cookie sur la page
+                # principale depuis un composant (voir l'historique de ce
+                # fichier). `window.top` force la navigation de l'ONGLET
+                # ENTIER (pas juste l'iframe du composant), donc plus de
+                # nouvel onglet qui laisse l'original "connecté".
+                js_url = json.dumps(logout_url)
+                components.html(
+                    f"""<button onclick='window.top.location.href={js_url};' style="width:100%;padding:0.5em 1em;border-radius:0.5em;border:1px solid rgba(49,51,63,0.2);background-color:#ffffff;color:#31333F;font-size:1rem;font-family:inherit;font-weight:400;cursor:pointer;">Se déconnecter</button>""",
+                    height=45,
                 )
             else:
                 # Repli si les secrets [auth] ne sont pas lisibles : au
