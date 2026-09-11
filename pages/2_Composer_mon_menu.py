@@ -203,13 +203,17 @@ if view == "results":
                 )
             except db.SavedListLimitReached as exc:
                 st.error(str(exc))
-                st.page_link("pages/5_Mes_menus.py", label="📋 Aller à Mes menus", icon="📋")
+                #st.page_link("pages/5_Mes_menus.py", label="📋 Aller à Mes menus", icon="📋")
+                if common.icon_button("Mes menus", "mes_menus.png", "📋", key="home-btn-menu"):
+                  st.switch_page("pages/5_Mes_menus.py")
             else:
                 st.success(
                     "Menu enregistré ! Retrouve-le, coche les articles au fur "
                     "et à mesure de tes courses, et affiche tes recettes sur la page « 📋 Mes menus »."
                 )
-                st.page_link("pages/5_Mes_menus.py", label="📋 Aller à Mes menus", icon="📋")
+                #st.page_link("pages/5_Mes_menus.py", label="📋 Aller à Mes menus", icon="📋")
+                if common.icon_button("Mes menus", "mes_menus.png", "📋", key="home-btn-menu"):
+                  st.switch_page("pages/5_Mes_menus.py")
     else:
         st.caption(
             "🔒 Connecte-toi (menu de gauche) pour enregistrer ce menu "
