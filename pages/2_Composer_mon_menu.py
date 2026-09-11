@@ -323,19 +323,26 @@ if (search_query or tag_filter or author_filter) and not names:
     st.info("Aucune recette ne correspond à ta recherche/filtre.")
 
 # ---------------------------------------------------------------------------
-# Grille de recettes responsive — cartes à largeur fixe, nombre de colonnes
-# qui s'adapte à la largeur de l'écran (façon e-shop).
+# Grille de recettes responsive — cartes à largeur FIXE (jamais étirées ni
+# compressées), nombre de colonnes par ligne qui s'adapte à la largeur de
+# l'écran (façon e-shop).
 # ---------------------------------------------------------------------------
 # st.columns() ne permet pas nativement un vrai flux de type CSS grid : les
 # colonnes se rétrécissent mais ne repassent jamais à la ligne. On simule ça
 # en demandant à chaque fois GRID_COLUMNS colonnes (le maximum voulu sur
 # grand écran), puis en forçant en CSS ces colonnes à une largeur fixe et à
-# passer à la ligne (flex-wrap) quand elles ne tiennent plus — le
-# navigateur affiche alors automatiquement 1 carte par ligne sur mobile, 2
-# sur tablette, jusqu'à GRID_COLUMNS sur grand écran, sans aucun JS.
+# passer à la ligne (flex-wrap) quand elles ne tiennent plus.
+#
+# `flex: 0 0 CARD_WIDTH_PXpx` (au lieu de `flex: 1 1 ...`) est le point
+# important : flex-grow à 0 empêche les cartes de s'ÉTIRER pour remplir la
+# ligne (ce qui arrivait avant quand il restait de la place, donnant
+# l'impression que la taille "respirait" selon la largeur de fenêtre), et
+# flex-shrink à 0 les empêche de se COMPRESSER. Résultat : une taille de
+# carte strictement identique quelle que soit la largeur d'écran — seul le
+# nombre de cartes par ligne change (calculé par le navigateur via
+# flex-wrap, sans JS).
 GRID_COLUMNS = 4
-CARD_MIN_WIDTH_PX = 300
-CARD_MAX_WIDTH_PX = 380
+CARD_WIDTH_PX = 320
 
 st.markdown(
     f"""
@@ -345,10 +352,10 @@ st.markdown(
         row-gap: 1.5rem;
     }}
     .st-key-recipe_grid div[data-testid="stHorizontalBlock"] > div[data-testid="column"] {{
-        flex: 1 1 {CARD_MIN_WIDTH_PX}px;
-        min-width: {CARD_MIN_WIDTH_PX}px;
-        max-width: {CARD_MAX_WIDTH_PX}px;
-        width: {CARD_MIN_WIDTH_PX}px;
+        flex: 0 0 {CARD_WIDTH_PX}px;
+        width: {CARD_WIDTH_PX}px;
+        min-width: {CARD_WIDTH_PX}px;
+        max-width: {CARD_WIDTH_PX}px;
     }}
     </style>
     """,
