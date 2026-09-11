@@ -545,11 +545,9 @@ with st.container(key="recipe_grid"):
                 'Tu connais une recette <br> qui mérite sa place ici ?</div>',
                 unsafe_allow_html=True,
             )
-            if st.button(
-                "➕ Ajouter une recette", key="add_recipe_tile_btn",
-                type="primary", use_container_width=True,
-            ):
-                st.switch_page("pages/1_Ajouter_une_recette.py")
+            if common.icon_button("Ajouter une recette", "ajouter_une_recette.png", "🍳", key="add_recipe_tile_btn"):
+              st.switch_page("pages/1_Ajouter_une_recette.py")
+
 
 st.divider()
 
