@@ -63,7 +63,6 @@ sessions sont bien terminées, dans le bon ordre.
 
 from __future__ import annotations
 
-import html
 from urllib.parse import quote
 
 import streamlit as st
@@ -209,24 +208,22 @@ def render_sidebar_auth() -> None:
 
             logout_url = _auth0_logout_url()
             if logout_url:
-                # IMPORTANT : cette chaîne HTML ne doit contenir AUCUN saut
-                # de ligne. Une première tentative avec un bloc indenté sur
-                # plusieurs lignes avait cassé le bouton (plus aucune
-                # navigation) : en Markdown, une ligne indentée de 4+
-                # espaces est interprétée comme un BLOC DE CODE, pas comme
-                # du HTML à afficher — le lien s'affichait donc comme texte
-                # brut au lieu d'être rendu cliquable. D'où tout sur une
-                # seule ligne ici, sans indentation possible.
-                escaped_url = html.escape(logout_url, quote=True)
-                link_html = (
-                    f'<a href="{escaped_url}" target="_self" style="display:block;'
-                    'text-align:center;text-decoration:none;padding:0.5em 1em;'
-                    'border-radius:0.5em;border:1px solid rgba(49,51,63,0.2);'
-                    'background-color:#ffffff;color:#31333F;font-size:1rem;'
-                    'font-weight:400;width:100%;box-sizing:border-box;">'
-                    'Se déconnecter</a>'
+                # ATTENTION avant de retenter une version "même onglet" en
+                # HTML brut : deux tentatives (multi-lignes, puis une seule
+                # ligne) ont toutes les deux cassé le bouton en conditions
+                # réelles, pour une raison qui reste incertaine (impossible
+                # à déboguer sans accès à un vrai navigateur). st.link_button
+                # EST la version dont le fonctionnement a été confirmé — le
+                # nouvel onglet qu'il ouvre est une gêne cosmétique mineure,
+                # largement préférable à un bouton qui ne fait rien du tout.
+                st.link_button(
+                    "Se déconnecter", logout_url,
+                    use_container_width=True,
+                    help="Termine aussi la session ouverte côté Auth0, pas "
+                         "seulement dans CookPotes. S'ouvre dans un nouvel "
+                         "onglet — tu peux fermer l'ancien une fois la "
+                         "déconnexion confirmée.",
                 )
-                st.markdown(link_html, unsafe_allow_html=True)
             else:
                 # Repli si les secrets [auth] ne sont pas lisibles : au
                 # moins déconnecter côté CookPotes plutôt que de bloquer.
