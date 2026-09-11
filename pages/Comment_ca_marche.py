@@ -10,6 +10,8 @@ st.set_page_config(
     layout="wide",
 )
 
+auth.render_sidebar_auth()
+
 common.icon_title("Comment ça marche ?", "comment_ca_marche.png", "📋")
 
 col1, col2, col3 = st.columns(3,gap="medium",border=True)
