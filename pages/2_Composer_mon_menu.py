@@ -546,7 +546,7 @@ with st.container(key="recipe_grid"):
             )
             if st.button(
                 "➕ Ajouter une recette", key="add_recipe_tile_btn",
-                type="tertiary", use_container_width=True,
+                type="primary", use_container_width=True,
             ):
                 st.switch_page("pages/1_Ajouter_une_recette.py")
 
