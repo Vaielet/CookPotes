@@ -538,7 +538,7 @@ with st.container(key="recipe_grid"):
                 'margin-bottom:0.9em; font-size:3rem; color:#8a8f98;">➕</div>',
                 unsafe_allow_html=True,
             )
-            col=st.column([1,3,1])
+            col=st.columns([1,3,1])
             with col[1]:
               st.markdown(
                   '<div style="text-align:center; color:rgb(120,120,120); '
