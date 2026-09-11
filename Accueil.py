@@ -103,14 +103,54 @@ CookPotes, c'est l'application qui vient sauver tes soirées, ton portefeuille e
     recent = db.get_recent_recipes(limit=5)
     if recent:
         st.caption("Dernières recettes ajoutées")
-        recent_cols = st.columns(len(recent))
-        for col, r in zip(recent_cols, recent):
-            with col:
-                common.render_recipe_image_card(r["name"], r["image"])
-                #st.caption(
-                    #f"👤 {r['created_by'] or 'inconnu'}  \n"
-                    #f"🗓️ {common.format_datetime(r['created_at'])}"
-                #)
+
+        # Même comportement que la grille de recettes de « Composer mon
+        # menu » : taille de carte strictement fixe sur ordinateur, souple
+        # (min/max) sur smartphone — voir les notes détaillées dans
+        # pages/2_Composer_mon_menu.py sur pourquoi chaque règle est là
+        # (sélecteur stColumn, !important, media query...).
+        RECENT_CARD_WIDTH_PX = 320
+        RECENT_CARD_MIN_WIDTH_PX = 300
+        RECENT_CARD_MAX_WIDTH_PX = 380
+        RECENT_DESKTOP_BREAKPOINT_PX = 768
+
+        st.markdown(
+            f"""
+            <style>
+            .st-key-recent_recipes_grid div[data-testid="stHorizontalBlock"] {{
+                display: flex !important;
+                flex-wrap: wrap !important;
+                row-gap: 1.5rem;
+            }}
+            .st-key-recent_recipes_grid div[data-testid="stColumn"] {{
+                display: block !important;
+                flex: 1 1 {RECENT_CARD_MIN_WIDTH_PX}px !important;
+                width: {RECENT_CARD_MIN_WIDTH_PX}px !important;
+                min-width: {RECENT_CARD_MIN_WIDTH_PX}px !important;
+                max-width: {RECENT_CARD_MAX_WIDTH_PX}px !important;
+            }}
+            @media (min-width: {RECENT_DESKTOP_BREAKPOINT_PX}px) {{
+                .st-key-recent_recipes_grid div[data-testid="stColumn"] {{
+                    flex: 0 0 {RECENT_CARD_WIDTH_PX}px !important;
+                    width: {RECENT_CARD_WIDTH_PX}px !important;
+                    min-width: {RECENT_CARD_WIDTH_PX}px !important;
+                    max-width: {RECENT_CARD_WIDTH_PX}px !important;
+                }}
+            }}
+            </style>
+            """,
+            unsafe_allow_html=True,
+        )
+
+        with st.container(key="recent_recipes_grid"):
+            recent_cols = st.columns(len(recent))
+            for col, r in zip(recent_cols, recent):
+                with col:
+                    common.render_recipe_image_card(r["name"], r["image"])
+                    #st.caption(
+                        #f"👤 {r['created_by'] or 'inconnu'}  \n"
+                        #f"🗓️ {common.format_datetime(r['created_at'])}"
+                    #)
     else:
         st.info("Aucune recette pour l'instant. Rendez-vous sur la page « Ajouter une recette ».")
 
