@@ -572,7 +572,7 @@ with st.container(key="recipe_grid"):
 st.divider()
 
 reference = st.text_input(
-    "📝 Référence (optionnel)",
+    "📝 Référence",
     placeholder="ex. : Repas de la semaine du 10 mai",
     help="Apparaît en haut de la liste de courses et dans le titre du carnet de recettes.",
     value=_current_reference(),
@@ -581,10 +581,14 @@ reference = st.text_input(
     args=(REFERENCE_MAIN_KEY, REFERENCE_CART_KEY),
 )
 
+reference_missing = not reference.strip()
+if reference_missing:
+    st.caption("⚠️ Indique une référence pour pouvoir générer le menu.")
+
 if st.button(
     "🧾 Générer la liste de courses et le carnet de recettes",
     type="primary",
-    disabled=len(selected_choices) == 0,
+    disabled=len(selected_choices) == 0 or reference_missing,
 ):
     _generate_shopping_list()
     st.rerun()
