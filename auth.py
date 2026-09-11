@@ -63,11 +63,9 @@ sessions sont bien terminées, dans le bon ordre.
 
 from __future__ import annotations
 
-import json
 from urllib.parse import quote
 
 import streamlit as st
-import streamlit.components.v1 as components
 
 import db
 
@@ -210,23 +208,24 @@ def render_sidebar_auth() -> None:
 
             logout_url = _auth0_logout_url()
             if logout_url:
-                # Deux tentatives via st.markdown(unsafe_allow_html=True)
-                # (un <a> multi-lignes, puis sur une seule ligne) ont toutes
-                # les deux abouti à un bouton qui ne fonctionnait plus du
-                # tout, pour une raison qui reste incertaine sans accès à un
-                # vrai navigateur pour déboguer. On change de technique :
-                # st.components.v1.html(), avec un vrai <button> dont le
-                # clic déclenche `window.top.location.href = ...` en JS —
-                # exactement la méthode qui avait déjà fait ses preuves
-                # dans cette appli pour écrire un cookie sur la page
-                # principale depuis un composant (voir l'historique de ce
-                # fichier). `window.top` force la navigation de l'ONGLET
-                # ENTIER (pas juste l'iframe du composant), donc plus de
-                # nouvel onglet qui laisse l'original "connecté".
-                js_url = json.dumps(logout_url)
-                components.html(
-                    f"""<button onclick='window.top.location.href={js_url};' style="width:100%;padding:0.5em 1em;border-radius:0.5em;border:1px solid rgba(49,51,63,0.2);background-color:#ffffff;color:#31333F;font-size:1rem;font-family:inherit;font-weight:400;cursor:pointer;">Se déconnecter</button>""",
-                    height=45,
+                # Trois tentatives d'ouvrir le lien dans le MÊME onglet ont
+                # échoué en conditions réelles (deux via st.markdown avec
+                # un <a>, une via st.components.v1.html avec un <button>
+                # onclick), sans qu'il soit possible de diagnostiquer
+                # pourquoi sans accès à un vrai navigateur. st.link_button
+                # reste la SEULE version dont le fonctionnement a été
+                # confirmé — on s'y tient, plutôt que de continuer à
+                # risquer de casser la déconnexion pour une préférence
+                # cosmétique (le nouvel onglet). L'onglet d'origine se met
+                # à jour tout seul à la prochaine interaction/actualisation
+                # (le cookie d'identité, lui, est bien supprimé pour de
+                # vrai — les deux onglets le partagent).
+                st.link_button(
+                    "Se déconnecter", logout_url,
+                    use_container_width=True,
+                    help="S'ouvre dans un nouvel onglet et termine aussi la "
+                         "session Auth0. L'onglet d'origine se remettra à "
+                         "jour à la prochaine action ou en l'actualisant.",
                 )
             else:
                 # Repli si les secrets [auth] ne sont pas lisibles : au
