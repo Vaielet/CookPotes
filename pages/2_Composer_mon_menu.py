@@ -561,7 +561,7 @@ with st.container(key="recipe_grid"):
                     border: none;
                 }
                 .st-key-add_recipe_tile_btn button:hover {
-                    background-color: #e04940;
+                    background-color: #d9a131;
                     color: white;
                 }
                 </style>
