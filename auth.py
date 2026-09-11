@@ -208,25 +208,18 @@ def render_sidebar_auth() -> None:
 
             logout_url = _auth0_logout_url()
             if logout_url:
-                # st.link_button() ouvre systématiquement un nouvel onglet
-                # (non configurable) — inadapté ici : on veut au contraire
-                # que tout l'enchaînement (Auth0 -> retour vers CookPotes,
-                # voir docstring du module) se passe dans le MÊME onglet.
-                # D'où un vrai lien HTML, stylé pour ressembler à un bouton
-                # Streamlit, avec target="_self" explicite.
-                st.markdown(
-                    f"""
-                    <a href="{logout_url}" target="_self" style="
-                        display: block; text-align: center; text-decoration: none;
-                        padding: 0.5em 1em; border-radius: 0.5em;
-                        border: 1px solid rgba(49, 51, 63, 0.2);
-                        background-color: rgb(255, 255, 255); color: rgb(49, 51, 63);
-                        font-size: 1em; font-weight: 400; width: 100%;
-                        box-sizing: border-box;">
-                        Se déconnecter
-                    </a>
-                    """,
-                    unsafe_allow_html=True,
+                # st.link_button() ouvre le lien dans un nouvel onglet — pas
+                # idéal, mais c'est une bibliothèque Streamlit standard et
+                # fiable (elle fonctionne). Une tentative de la remplacer
+                # par un lien HTML brut pour éviter ce nouvel onglet a
+                # cassé le bouton (plus aucune navigation) — revenu ici en
+                # arrière sur ce point précis : mieux vaut un nouvel onglet
+                # qui fonctionne qu'un même onglet qui ne fait rien.
+                st.link_button(
+                    "Se déconnecter", logout_url,
+                    use_container_width=True,
+                    help="Termine aussi la session ouverte côté Auth0, pas "
+                         "seulement dans CookPotes.",
                 )
             else:
                 # Repli si les secrets [auth] ne sont pas lisibles : au
