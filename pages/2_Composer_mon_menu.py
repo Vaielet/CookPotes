@@ -342,9 +342,9 @@ if (search_query or tag_filter or author_filter) and not names:
 # nombre de cartes par ligne change (calculé par le navigateur via
 # flex-wrap, sans JS).
 GRID_COLUMNS = 4
-CARD_WIDTH_PX = 320  # ordinateur : taille strictement fixe (ne rétrécit jamais)
-CARD_MIN_WIDTH_PX = 300  # smartphone : peut rétrécir jusqu'à cette largeur
-CARD_MAX_WIDTH_PX = 380  # smartphone : peut grandir jusqu'à cette largeur
+CARD_WIDTH_PX = 300  # ordinateur : taille strictement fixe (ne rétrécit jamais)
+CARD_MIN_WIDTH_PX = 280  # smartphone : peut rétrécir jusqu'à cette largeur
+CARD_MAX_WIDTH_PX = 350  # smartphone : peut grandir jusqu'à cette largeur
 DESKTOP_BREAKPOINT_PX = 768  # au-delà : comportement "ordinateur" (taille fixe)
 # `!important` sur toutes ces règles : sur grand écran, Streamlit recalcule
 # et réapplique ses propres largeurs de colonnes (en style inline) à chaque
