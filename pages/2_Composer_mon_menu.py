@@ -209,7 +209,7 @@ if view == "results":
             else:
                 st.success(
                     "Menu enregistré ! Retrouve-le, coche les articles au fur "
-                    "et à mesure de tes courses, et affiche tes recettes sur la page « 📋 Mes menus »."
+                    "et à mesure de tes courses, et affiche tes recettes sur la page : "
                 )
                 #st.page_link("pages/5_Mes_menus.py", label="📋 Aller à Mes menus", icon="📋")
                 if common.icon_button("Mes menus", "mes_menus.png", "📋", key="home-btn-menu"):
