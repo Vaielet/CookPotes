@@ -63,6 +63,7 @@ sessions sont bien terminées, dans le bon ordre.
 
 from __future__ import annotations
 
+import html
 from urllib.parse import quote
 
 import streamlit as st
@@ -208,24 +209,23 @@ def render_sidebar_auth() -> None:
 
             logout_url = _auth0_logout_url()
             if logout_url:
-                # Trois tentatives d'ouvrir le lien dans le MÊME onglet ont
-                # échoué en conditions réelles (deux via st.markdown avec
-                # un <a>, une via st.components.v1.html avec un <button>
-                # onclick), sans qu'il soit possible de diagnostiquer
-                # pourquoi sans accès à un vrai navigateur. st.link_button
-                # reste la SEULE version dont le fonctionnement a été
-                # confirmé — on s'y tient, plutôt que de continuer à
-                # risquer de casser la déconnexion pour une préférence
-                # cosmétique (le nouvel onglet). L'onglet d'origine se met
-                # à jour tout seul à la prochaine interaction/actualisation
-                # (le cookie d'identité, lui, est bien supprimé pour de
-                # vrai — les deux onglets le partagent).
-                st.link_button(
-                    "Se déconnecter", logout_url,
-                    use_container_width=True,
-                    help="S'ouvre dans un nouvel onglet et termine aussi la "
-                         "session Auth0. L'onglet d'origine se remettra à "
-                         "jour à la prochaine action ou en l'actualisant.",
+                # Reprise après 3 échecs précédents (2x st.markdown avec un
+                # <a>, 1x st.components.v1.html avec un <button> onclick) :
+                # hypothèse la plus probable après coup, c'est que ces
+                # tentatives étaient TECHNIQUEMENT correctes, mais tombaient
+                # sur l'erreur Auth0 "post_logout_redirect_uri not allowed"
+                # (voir historique) — la configuration "Allowed Logout URLs"
+                # n'était pas encore complète au moment des tests. Depuis
+                # qu'elle l'est, on retente la version la plus simple et la
+                # plus standard possible : un <a> tout nu, sans JS, sans
+                # target explicite (target="_self" EST le comportement par
+                # défaut d'un lien HTML — l'imposer explicitement n'était
+                # pas nécessaire et a peut-être ajouté de la confusion).
+                # Volontairement sur UNE SEULE LIGNE (voir les notes plus
+                # bas dans ce fichier sur le bug d'indentation Markdown).
+                st.markdown(
+                    f'<a href="{html.escape(logout_url, quote=True)}" style="display:block;text-align:center;text-decoration:none;padding:0.5em 1em;border-radius:0.5em;border:1px solid rgba(49,51,63,0.2);background-color:#ffffff;color:#31333F;font-size:1rem;font-family:inherit;font-weight:400;">Se déconnecter</a>',
+                    unsafe_allow_html=True,
                 )
             else:
                 # Repli si les secrets [auth] ne sont pas lisibles : au
