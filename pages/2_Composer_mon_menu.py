@@ -546,29 +546,28 @@ with st.container(key="recipe_grid"):
                 unsafe_allow_html=True,
             )
 
-            if st.button(
-                "➕ Ajouter une recette", key="add_recipe_tile_btn",
-                type="primary", use_container_width=True,
-            ):
-                st.switch_page("pages/1_Ajouter_une_recette.py")
-
-            st.markdown(
-                """
-                <style>
-                .st-key-add_recipe_tile_btn {
-                    background-color: #FF5951;
-                    color: white;
-                    border: none;
-                }
-                .st-add_recipe_tile_btn button:hover {
-                    background-color: #e04940;
-                    color: white;
-                }
-                </style>
-                """,
-                unsafe_allow_html=True,
-            )
-
+           if st.button(
+              "➕ Ajouter une recette", key="add_recipe_tile_btn",
+              type="primary", use_container_width=True,
+          ):
+              st.switch_page("pages/1_Ajouter_une_recette.py")
+          
+          st.markdown(
+              """
+              <style>
+              .st-key-add_recipe_tile_btn button {
+                  background-color: #FF5951;
+                  color: white;
+                  border: none;
+              }
+              .st-key-add_recipe_tile_btn button:hover {
+                  background-color: #e04940;
+                  color: white;
+              }
+              </style>
+              """,
+              unsafe_allow_html=True,
+          )
 st.divider()
 
 reference = st.text_input(
