@@ -549,10 +549,10 @@ with st.container(key="recipe_grid"):
            if st.button(
               "➕ Ajouter une recette", key="add_recipe_tile_btn",
               type="primary", use_container_width=True,
-          ):
+              ):
               st.switch_page("pages/1_Ajouter_une_recette.py")
           
-          st.markdown(
+            st.markdown(
               """
               <style>
               .st-key-add_recipe_tile_btn button {
@@ -567,7 +567,7 @@ with st.container(key="recipe_grid"):
               </style>
               """,
               unsafe_allow_html=True,
-          )
+            )
 st.divider()
 
 reference = st.text_input(
