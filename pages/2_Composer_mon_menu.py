@@ -334,8 +334,8 @@ if (search_query or tag_filter or author_filter) and not names:
 # navigateur affiche alors automatiquement 1 carte par ligne sur mobile, 2
 # sur tablette, jusqu'à GRID_COLUMNS sur grand écran, sans aucun JS.
 GRID_COLUMNS = 4
-CARD_MIN_WIDTH_PX = 260
-CARD_MAX_WIDTH_PX = 320
+CARD_MIN_WIDTH_PX = 300
+CARD_MAX_WIDTH_PX = 380
 
 st.markdown(
     f"""
@@ -470,6 +470,34 @@ with st.container(key="recipe_grid"):
                     ):
                         cart_ids.add(recipe["id"])
                         st.rerun()
+
+    # Vignette "Ajouter une recette", à la fin de la grille, avec le même
+    # style de carte que les recettes — sur la même ligne que la dernière
+    # carte s'il reste de la place, sinon elle démarre une nouvelle ligne
+    # (même logique de colonnes que la boucle ci-dessus).
+    add_index = len(names)
+    if add_index % GRID_COLUMNS == 0:
+        columns = st.columns(GRID_COLUMNS, gap="medium")
+    add_col = columns[add_index % GRID_COLUMNS]
+    with add_col:
+        with st.container(border=True):
+            st.markdown(
+                '<div style="display:flex; align-items:center; justify-content:center; '
+                'aspect-ratio:4/3; background:#f0f2f6; border-radius:0.5rem; '
+                'margin-bottom:0.9em; font-size:3rem; color:#8a8f98;">➕</div>',
+                unsafe_allow_html=True,
+            )
+            st.markdown(
+                '<div style="text-align:center; color:rgb(120,120,120); '
+                'font-size:0.9rem; margin-bottom:0.9em;">'
+                'Une recette qui mérite sa place ici ?</div>',
+                unsafe_allow_html=True,
+            )
+            if st.button(
+                "➕ Ajouter une recette", key="add_recipe_tile_btn",
+                type="primary", use_container_width=True,
+            ):
+                st.switch_page("pages/1_Ajouter_une_recette.py")
 
 st.divider()
 
