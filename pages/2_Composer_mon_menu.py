@@ -343,19 +343,25 @@ if (search_query or tag_filter or author_filter) and not names:
 # flex-wrap, sans JS).
 GRID_COLUMNS = 4
 CARD_WIDTH_PX = 320
+# `!important` sur toutes ces règles : sur grand écran, Streamlit recalcule
+# et réapplique ses propres largeurs de colonnes (en style inline) à chaque
+# redimensionnement de fenêtre — un style inline gagne toujours face à une
+# règle de feuille de style externe, quelle que soit sa précision, sauf à
+# forcer avec !important. Sans ça, le comportement fixe ne tenait que sur
+# mobile (où Streamlit n'applique pas ce recalcul dynamique).
 
 st.markdown(
     f"""
     <style>
     .st-key-recipe_grid div[data-testid="stHorizontalBlock"] {{
-        flex-wrap: wrap;
+        flex-wrap: wrap !important;
         row-gap: 1.5rem;
     }}
     .st-key-recipe_grid div[data-testid="stHorizontalBlock"] > div[data-testid="column"] {{
-        flex: 0 0 {CARD_WIDTH_PX}px;
-        width: {CARD_WIDTH_PX}px;
-        min-width: {CARD_WIDTH_PX}px;
-        max-width: {CARD_WIDTH_PX}px;
+        flex: 0 0 {CARD_WIDTH_PX}px !important;
+        width: {CARD_WIDTH_PX}px !important;
+        min-width: {CARD_WIDTH_PX}px !important;
+        max-width: {CARD_WIDTH_PX}px !important;
     }}
     </style>
     """,
