@@ -63,6 +63,7 @@ sessions sont bien terminées, dans le bon ordre.
 
 from __future__ import annotations
 
+import html
 from urllib.parse import quote
 
 import streamlit as st
@@ -208,19 +209,24 @@ def render_sidebar_auth() -> None:
 
             logout_url = _auth0_logout_url()
             if logout_url:
-                # st.link_button() ouvre le lien dans un nouvel onglet — pas
-                # idéal, mais c'est une bibliothèque Streamlit standard et
-                # fiable (elle fonctionne). Une tentative de la remplacer
-                # par un lien HTML brut pour éviter ce nouvel onglet a
-                # cassé le bouton (plus aucune navigation) — revenu ici en
-                # arrière sur ce point précis : mieux vaut un nouvel onglet
-                # qui fonctionne qu'un même onglet qui ne fait rien.
-                st.link_button(
-                    "Se déconnecter", logout_url,
-                    use_container_width=True,
-                    help="Termine aussi la session ouverte côté Auth0, pas "
-                         "seulement dans CookPotes.",
+                # IMPORTANT : cette chaîne HTML ne doit contenir AUCUN saut
+                # de ligne. Une première tentative avec un bloc indenté sur
+                # plusieurs lignes avait cassé le bouton (plus aucune
+                # navigation) : en Markdown, une ligne indentée de 4+
+                # espaces est interprétée comme un BLOC DE CODE, pas comme
+                # du HTML à afficher — le lien s'affichait donc comme texte
+                # brut au lieu d'être rendu cliquable. D'où tout sur une
+                # seule ligne ici, sans indentation possible.
+                escaped_url = html.escape(logout_url, quote=True)
+                link_html = (
+                    f'<a href="{escaped_url}" target="_self" style="display:block;'
+                    'text-align:center;text-decoration:none;padding:0.5em 1em;'
+                    'border-radius:0.5em;border:1px solid rgba(49,51,63,0.2);'
+                    'background-color:#ffffff;color:#31333F;font-size:1rem;'
+                    'font-weight:400;width:100%;box-sizing:border-box;">'
+                    'Se déconnecter</a>'
                 )
+                st.markdown(link_html, unsafe_allow_html=True)
             else:
                 # Repli si les secrets [auth] ne sont pas lisibles : au
                 # moins déconnecter côté CookPotes plutôt que de bloquer.
