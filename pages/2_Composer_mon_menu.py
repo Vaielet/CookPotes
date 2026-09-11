@@ -353,13 +353,18 @@ CARD_WIDTH_PX = 320
 # les propriétés flex (flex-grow, flex-shrink, flex-basis) deviennent sans
 # effet, puisqu'elles ne s'appliquent qu'à l'intérieur d'un conteneur flex.
 #
-# Sélecteur SANS ">" (enfant direct) entre stHorizontalBlock et column :
-# vérifié dans l'inspecteur du navigateur que Streamlit imbrique parfois
-# une div supplémentaire entre les deux (structure interne pas garantie
-# stable d'une version à l'autre) — avec ">", la règle ne matchait tout
-# simplement jamais dans ce cas, silencieusement (aucune erreur, elle ne
-# s'appliquait juste pas). Un sélecteur descendant (juste un espace)
-# fonctionne quelle que soit la profondeur d'imbrication entre les deux.
+# Sélecteur SANS ">" (enfant direct) entre stHorizontalBlock et stColumn :
+# Streamlit imbrique parfois une div supplémentaire entre les deux —
+# un sélecteur descendant (juste un espace) fonctionne quelle que soit la
+# profondeur d'imbrication.
+#
+# `data-testid="stColumn"`, PAS `data-testid="column"` : erreur trouvée
+# grâce à une recherche Ctrl+F dans l'inspecteur du navigateur (le seul
+# résultat trouvé pour "column" était mon PROPRE bloc <style> injecté, pas
+# un vrai élément — donc rien ne matchait jamais, silencieusement, depuis
+# le début). Tous les attributs internes de Streamlit sont préfixés "st"
+# (stElementContainer, stMarkdown, stHorizontalBlock...) — "column" seul
+# n'existe pas dans cette version.
 
 st.markdown(
     f"""
@@ -369,7 +374,7 @@ st.markdown(
         flex-wrap: wrap !important;
         row-gap: 1.5rem;
     }}
-    .st-key-recipe_grid div[data-testid="column"] {{
+    .st-key-recipe_grid div[data-testid="stColumn"] {{
         display: block !important;
         flex: 0 0 {CARD_WIDTH_PX}px !important;
         width: {CARD_WIDTH_PX}px !important;
