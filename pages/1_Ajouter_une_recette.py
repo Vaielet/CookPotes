@@ -340,7 +340,8 @@ if to_classify:
     st.subheader("🏷️ Nouveaux produits détectés")
     st.caption(
         "Ces ingrédients ne sont pas encore répertoriés dans la base de "
-        "produits (ou n'ont pas encore de rayon). Tu peux les classer "
+        "produits (ou n'ont pas encore de rayon). Classe-les dans un des rayons prédéfinis. "
+        "Tu peux les classer "
         "tout de suite — c'est facultatif, la recette s'enregistre "
         "normalement même si tu laisses ça à plus tard."
     )
