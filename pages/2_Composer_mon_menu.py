@@ -352,7 +352,14 @@ CARD_WIDTH_PX = 320
 # passer ce conteneur en CSS Grid plutôt qu'en Flexbox — dans ce cas, TOUTES
 # les propriétés flex (flex-grow, flex-shrink, flex-basis) deviennent sans
 # effet, puisqu'elles ne s'appliquent qu'à l'intérieur d'un conteneur flex.
-# Sans ce forçage, le comportement fixe ne tenait que sur mobile.
+#
+# Sélecteur SANS ">" (enfant direct) entre stHorizontalBlock et column :
+# vérifié dans l'inspecteur du navigateur que Streamlit imbrique parfois
+# une div supplémentaire entre les deux (structure interne pas garantie
+# stable d'une version à l'autre) — avec ">", la règle ne matchait tout
+# simplement jamais dans ce cas, silencieusement (aucune erreur, elle ne
+# s'appliquait juste pas). Un sélecteur descendant (juste un espace)
+# fonctionne quelle que soit la profondeur d'imbrication entre les deux.
 
 st.markdown(
     f"""
@@ -362,7 +369,7 @@ st.markdown(
         flex-wrap: wrap !important;
         row-gap: 1.5rem;
     }}
-    .st-key-recipe_grid div[data-testid="stHorizontalBlock"] > div[data-testid="column"] {{
+    .st-key-recipe_grid div[data-testid="column"] {{
         display: block !important;
         flex: 0 0 {CARD_WIDTH_PX}px !important;
         width: {CARD_WIDTH_PX}px !important;
