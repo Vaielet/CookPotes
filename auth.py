@@ -209,36 +209,41 @@ def render_sidebar_auth() -> None:
 
             logout_url = _auth0_logout_url()
             if logout_url:
-                # 4e tentative précédente (un <a> tout nu, sans target) a
-                # bien navigué (le bouton "fonctionne"), mais s'est quand
-                # même ouverte dans un nouvel onglet — cohérent avec
-                # l'hypothèse que Streamlit force target="_blank" sur tout
-                # lien externe rendu via st.markdown(), en mesure de
-                # sécurité, indépendamment de ce qu'on écrit dans le HTML
-                # (st.link_button fait la même chose, par conception).
+                # Historique complet des tentatives "même onglet" (toutes
+                # échouées, pour des raisons chaque fois différentes et
+                # instructives) :
+                #   1-2) <a> via st.markdown(), multi-lignes puis 1 ligne
+                #        -> a fini par NAVIGUER correctement (donc pas un
+                #        bug HTML), mais ouvre quand même un nouvel onglet.
+                #   3)   <button onclick=window.top.location...> dans
+                #        st.components.v1.html() -> ne fonctionne pas du
+                #        tout (l'iframe du composant est sandboxée sans la
+                #        permission de navigation du cadre parent).
+                #   4)   <meta http-equiv="refresh"> via st.markdown() ->
+                #        ne fonctionne pas du tout : un navigateur
+                #        n'exécute PAS les balises meta-refresh (ni les
+                #        <script>) injectées dynamiquement dans la page
+                #        (innerHTML) — protection de sécurité du
+                #        navigateur, aucun moyen de la contourner en HTML.
                 #
-                # Contournement : un <meta http-equiv="refresh"> n'est PAS
-                # un lien cliquable, donc pas soumis à cette règle. On
-                # déclenche son affichage via un vrai st.button (qui ne
-                # navigue jamais lui-même, juste un rerun Python) plutôt
-                # que de rendre le clic lui-même : le bouton met un drapeau
-                # dans session_state, et c'est le RERUN qui affiche la
-                # balise meta-refresh, dont le navigateur suit
-                # automatiquement la redirection — dans le même onglet,
-                # puisque ce n'est pas une navigation initiée par un clic
-                # sur un lien.
-                if st.session_state.get("_pending_auth0_logout"):
-                    st.session_state["_pending_auth0_logout"] = False
-                    st.markdown(
-                        f'<meta http-equiv="refresh" content="0;url={html.escape(logout_url, quote=True)}">',
-                        unsafe_allow_html=True,
-                    )
-                    st.caption("Déconnexion en cours…")
-                    st.stop()
-
-                if st.button("Se déconnecter", key="_auth_logout_btn", use_container_width=True):
-                    st.session_state["_pending_auth0_logout"] = True
-                    st.rerun()
+                # Conclusion : le nouvel onglet des tentatives 1-2 n'était
+                # pas un bug à corriger, mais très probablement un choix
+                # délibéré de Streamlit lui-même — il intercepte les clics
+                # sur un lien externe et force target="_blank", pour éviter
+                # qu'un clic accidentel ne tue la session WebSocket active
+                # en quittant la page. st.link_button fait la même chose,
+                # par conception. On s'y tient : c'est fiable, et le
+                # nouvel onglet est un choix de sécurité de Streamlit, pas
+                # un défaut du code.
+                st.link_button(
+                    "Se déconnecter", logout_url,
+                    use_container_width=True,
+                    help="S'ouvre dans un nouvel onglet (Streamlit force ce "
+                         "comportement pour tout lien externe, afin de "
+                         "protéger la session active). Il se ferme "
+                         "normalement tout seul une fois la déconnexion "
+                         "terminée.",
+                )
             else:
                 # Repli si les secrets [auth] ne sont pas lisibles : au
                 # moins déconnecter côté CookPotes plutôt que de bloquer.
