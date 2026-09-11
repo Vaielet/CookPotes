@@ -355,6 +355,26 @@ def _migrate_schema() -> None:
                 {"nickname": nickname, "id": row["id"]},
             )
 
+        # Unicité insensible à la casse sur `username` lui-même : la
+        # contrainte d'origine (colonne UNIQUE, voir CREATE TABLE plus haut)
+        # est sensible à la casse, alors que TOUTE la logique applicative
+        # (recherche de compte pour le partage, dérivation automatique de
+        # pseudo ci-dessus, etc.) raisonne de façon insensible à la casse.
+        # Sans cet index, rien n'empêchait au niveau base deux comptes
+        # "Bob" et "bob" de coexister, ce qui aurait pu semer la confusion
+        # au partage d'un menu ou dans l'attribution des recettes.
+        #
+        # Si cette création échoue avec une erreur de type "duplicated key"
+        # (UniqueViolation), c'est qu'un tel doublon existe déjà en base :
+        # même correctif que pour users_email_unique_idx plus haut — une
+        # requête SELECT id, username FROM users WHERE LOWER(username) =
+        # LOWER('le-pseudo-en-double') pour identifier les deux comptes,
+        # puis DELETE FROM users WHERE id = <celui à retirer>.
+        conn.execute(text("""
+            CREATE UNIQUE INDEX IF NOT EXISTS users_username_ci_unique_idx
+            ON users (LOWER(username))
+        """))
+
 
 def _seed_default_recipes_if_empty() -> None:
     with get_conn() as conn:
@@ -1076,16 +1096,41 @@ def update_username(user_id: int, new_username: str) -> None:
     Change le pseudo affiché d'un compte (jamais l'email, qui reste fixe
     et invisible). Lève db.IntegrityError si ce pseudo est déjà pris par
     un autre compte (contrainte d'unicité déjà existante sur `username`).
+
+    `recipes.created_by`/`updated_by` sont des SNAPSHOTS texte (pas une
+    référence vers users.id) : sans ce traitement, changer de pseudo
+    laisserait les recettes déjà créées afficher l'ancien pseudo pour
+    toujours. On les met donc à jour ici, dans la MÊME transaction que le
+    changement de pseudo — soit les deux réussissent, soit aucun (jamais
+    un pseudo mis à jour dans `users` mais pas dans `recipes`, ce qui
+    romprait la cohérence de l'attribution des recettes).
     """
     new_username = (new_username or "").strip()
     if not new_username:
         raise ValueError("Le pseudo ne peut pas être vide.")
     with get_conn() as conn:
+        old_row = conn.execute(
+            text("SELECT username FROM users WHERE id = :id"), {"id": user_id}
+        ).mappings().first()
+        old_username = old_row["username"] if old_row else None
+
         conn.execute(
             text("UPDATE users SET username = :username WHERE id = :id"),
             {"username": new_username, "id": user_id},
         )
+
+        if old_username and old_username != new_username:
+            conn.execute(
+                text("UPDATE recipes SET created_by = :new WHERE created_by = :old"),
+                {"new": new_username, "old": old_username},
+            )
+            conn.execute(
+                text("UPDATE recipes SET updated_by = :new WHERE updated_by = :old"),
+                {"new": new_username, "old": old_username},
+            )
+
     _clear_user_caches()
+    _clear_recipe_caches()
 
 
 def set_user_role(user_id: int, is_editor: bool, is_admin: bool, can_manage_products: bool | None = None) -> None:
