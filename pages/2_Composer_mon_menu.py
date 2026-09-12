@@ -236,6 +236,7 @@ if view == "results":
                     reference=reference,
                     recipe_choices=[(c.name, c.people) for c in choices],
                     grouped_items=grouped,
+                    recipes=recipes,
                 )
             except db.SavedListLimitReached as exc:
                 st.session_state["_save_menu_status"] = ("limit", str(exc))
