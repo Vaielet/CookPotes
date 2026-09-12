@@ -266,7 +266,9 @@ if view == "results":
                 st.switch_page("pages/5_Mes_menus.py")
     else:
         st.caption(
-            "🔒 Page réservée aux utilisateur·rices connecté·es avec un compte validé."
+            "🔒 Connecte-toi (menu de gauche) pour enregistrer ce menu "
+            "sur ton compte, cocher les articles au fur et à mesure de tes "
+            "courses, et retrouver les recettes."
         )
 
     st.stop()
@@ -355,7 +357,7 @@ if all_tags:
     tag_filter = filter_cols[0].multiselect(
         "🏷️ Filtrer par catégorie (optionnel)",
         options=all_tags,
-        help="Affiche uniquement les recettes ayant au moins une des catégories sélectionnées.",
+        help="Affiche uniquement les recettes ayant TOUTES les catégories sélectionnées.",
     )
 
 author_filter = []
@@ -384,7 +386,10 @@ names = list(recipes.keys())
 if search_query:
     names = [name for name in names if _matches_search(name, recipes[name], search_query)]
 if tag_filter:
-    names = [name for name in names if set(recipes[name].get("tags", [])) & set(tag_filter)]
+    # Cumulatif ("et") : la recette doit avoir TOUTES les catégories
+    # sélectionnées, pas seulement au moins une — issubset() plutôt que
+    # l'intersection (&) utilisée avant, qui correspondait à un "ou".
+    names = [name for name in names if set(tag_filter).issubset(set(recipes[name].get("tags", [])))]
 if author_filter:
     names = [name for name in names if recipes[name].get("created_by") in author_filter]
 
