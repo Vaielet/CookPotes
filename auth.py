@@ -132,10 +132,22 @@ def is_approved() -> bool:
 def current_username() -> str | None:
     """
     Garde ce nom de fonction pour compatibilité avec le reste de l'appli,
-    même si ça renvoie désormais l'email Auth0 — utilisé comme "username"
-    partout où c'était déjà le cas (partage de menus, "ajouté par"...).
+    même si ça renvoie désormais l'email Auth0 à l'origine — utilisé comme
+    "username" partout où c'était déjà le cas ("ajouté par" sur les
+    recettes, affichage dans la sidebar...). Pour le partage de menus,
+    voir current_public_id() : un identifiant stable, pas ce pseudo
+    librement modifiable.
     """
     return _current_role_info().get("username")
+
+
+def current_public_id() -> str | None:
+    """
+    Identifiant unique et STABLE du compte (jamais modifiable, contrairement
+    au pseudo) — voir db._generate_unique_public_id. C'est celui-ci qu'on
+    communique à quelqu'un pour qu'iel partage un menu avec vous.
+    """
+    return _current_role_info().get("public_id")
 
 
 def current_user_id() -> int | None:
@@ -204,9 +216,18 @@ def render_sidebar_auth() -> None:
             display_name = current_username() or getattr(st.user, "name", None)
             st.success(f"Connecté : **{display_name}**  \nRôle : {role_label}")
 
-            with st.popover("✏️ Changer mon pseudo", use_container_width=True):
+            with st.popover("🆔 Mon identifiant & pseudo", use_container_width=True):
+                st.caption(
+                    "Ton identifiant unique — communique-le à quelqu'un "
+                    "pour qu'iel puisse partager un menu avec toi. Il ne "
+                    "change jamais, contrairement à ton pseudo."
+                )
+                st.code(current_public_id() or "", language=None)
+
+                st.divider()
                 new_nickname = st.text_input(
-                    "Nouveau pseudo", value=current_username() or "",
+                    "Ton pseudo (affiché partout dans l'appli, modifiable)",
+                    value=current_username() or "",
                     key="_auth_nickname_input",
                 )
                 if st.button("Enregistrer", key="_auth_nickname_save"):
@@ -260,7 +281,8 @@ def render_sidebar_auth() -> None:
                     logout()
         else:
             st.caption(
-                "🔒 Connecte-toi ou crée un compte pour accéder à l'app."
+                "Connecte-toi pour ajouter des recettes et sauvegarder les "
+                "menus que tu as composés."
             )
             if st.button(
                 "Se connecter / créer un compte", key="_auth_login_btn",
@@ -289,7 +311,7 @@ APPROVAL_PENDING_MESSAGE = (
 
 
 def require_editor(
-    message: str = "🔒 Page réservée aux utilisateur·rices connecté·es avec un compte validé.",
+    message: str = "🔒 Connecte-toi (menu de gauche) pour accéder à cette page — c'est gratuit et ça prend 10 secondes.",
 ) -> None:
     """
     À appeler tout en haut d'une page réservée aux éditeurs de recettes.
@@ -333,7 +355,7 @@ def require_product_curator(
 
 
 def require_login(
-    message: str = "🔒 Page réservée aux utilisateur·rices connecté·es avec un compte validé.",
+    message: str = "🔒 Connecte-toi (menu de gauche) pour accéder à cette page — c'est gratuit et ça prend 10 secondes.",
 ) -> None:
     """
     À appeler tout en haut d'une page réservée aux personnes connectées ET

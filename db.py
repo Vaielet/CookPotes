@@ -290,6 +290,35 @@ def _derive_unique_nickname(conn, base: str) -> str:
     return candidate
 
 
+# Alphabet volontairement restreint aux caractères non ambigus à l'oreille
+# ou à l'écrit (pas de 0/O, 1/I/L) — cet identifiant est fait pour être lu
+# à voix haute ou recopié à la main pour le partage d'un menu.
+_PUBLIC_ID_ALPHABET = "ABCDEFGHJKMNPQRSTUVWXYZ23456789"
+_PUBLIC_ID_LENGTH = 8
+
+
+def _generate_unique_public_id(conn) -> str:
+    """
+    Identifiant unique et STABLE (jamais modifié une fois créé) pour un
+    compte — voir auth.current_public_id() et db.get_user_by_public_id().
+    Contrairement au pseudo (librement modifiable), c'est cet identifiant
+    qu'on communique à quelqu'un pour qu'iel partage un menu avec vous :
+    un pseudo qui change casserait silencieusement un partage basé dessus.
+
+    8 caractères tirés d'un alphabet de 32 symboles nont-ambigus : plus de
+    1000 milliards de combinaisons, collision avec un compte existant
+    astronomiquement improbable — la boucle ci-dessous n'est qu'un filet
+    de sécurité, pas un mécanisme réellement sollicité en pratique.
+    """
+    while True:
+        candidate = "".join(secrets.choice(_PUBLIC_ID_ALPHABET) for _ in range(_PUBLIC_ID_LENGTH))
+        exists = conn.execute(
+            text("SELECT 1 FROM users WHERE public_id = :pid"), {"pid": candidate}
+        ).first()
+        if exists is None:
+            return candidate
+
+
 def _migrate_schema() -> None:
     """Ajoute les colonnes introduites après la version initiale, si absentes."""
     with get_conn() as conn:
@@ -443,6 +472,31 @@ def _migrate_schema() -> None:
             SET recipe_id = r.id
             FROM recipes r
             WHERE sslr.recipe_id IS NULL AND sslr.recipe_name = r.name
+        """))
+
+        # Identifiant unique et stable par compte (voir _generate_unique_
+        # public_id, auth.current_public_id, get_user_by_public_id) — sert
+        # de base fiable pour le partage d'un menu, indépendante du pseudo
+        # (librement modifiable). Colonne nullable dans un premier temps
+        # (impossible de mettre UNIQUE NOT NULL directement sur une colonne
+        # qu'on vient d'ajouter à une table déjà peuplée), remplie ligne
+        # par ligne juste après, puis vraiment contrainte "NOT NULL".
+        conn.execute(text("ALTER TABLE users ADD COLUMN IF NOT EXISTS public_id TEXT"))
+
+        rows_without_public_id = conn.execute(
+            text("SELECT id FROM users WHERE public_id IS NULL")
+        ).mappings().all()
+        for row in rows_without_public_id:
+            new_public_id = _generate_unique_public_id(conn)
+            conn.execute(
+                text("UPDATE users SET public_id = :pid WHERE id = :id"),
+                {"pid": new_public_id, "id": row["id"]},
+            )
+
+        conn.execute(text("ALTER TABLE users ALTER COLUMN public_id SET NOT NULL"))
+        conn.execute(text("""
+            CREATE UNIQUE INDEX IF NOT EXISTS users_public_id_unique_idx
+            ON users (public_id)
         """))
 
 
@@ -1015,12 +1069,13 @@ def create_user(
     digest_hex, salt_hex = _hash_password(password)
 
     with get_conn() as conn:
+        public_id = _generate_unique_public_id(conn)
         new_id = conn.execute(
             text("""
                 INSERT INTO users
-                (username, password_hash, salt, is_editor, is_admin, can_manage_products, is_approved)
+                (username, password_hash, salt, is_editor, is_admin, can_manage_products, is_approved, public_id)
                 VALUES
-                (:username, :password_hash, :salt, :is_editor, :is_admin, :can_manage_products, :is_approved)
+                (:username, :password_hash, :salt, :is_editor, :is_admin, :can_manage_products, :is_approved, :public_id)
                 RETURNING id
             """),
             {
@@ -1031,6 +1086,7 @@ def create_user(
                 "is_admin": bool(is_admin),
                 "can_manage_products": bool(can_manage_products),
                 "is_approved": bool(is_approved),
+                "public_id": public_id,
             },
         ).scalar()
     _clear_user_caches()
@@ -1076,6 +1132,7 @@ def verify_credentials(
         "is_admin": bool(row["is_admin"]),
         "can_manage_products": bool(row["can_manage_products"]),
         "is_approved": bool(row["is_approved"]),
+        "public_id": row["public_id"],
     }
 
 
@@ -1083,7 +1140,7 @@ def verify_credentials(
 def list_users() -> list[dict]:
     with get_conn() as conn:
         rows = conn.execute(
-            text("SELECT id, username, is_editor, is_admin, can_manage_products, is_approved FROM users ORDER BY LOWER(username)")
+            text("SELECT id, username, is_editor, is_admin, can_manage_products, is_approved, public_id FROM users ORDER BY LOWER(username)")
         ).mappings().all()
     return [
         {
@@ -1093,6 +1150,7 @@ def list_users() -> list[dict]:
             "is_admin": bool(r["is_admin"]),
             "can_manage_products": bool(r["can_manage_products"]),
             "is_approved": bool(r["is_approved"]),
+            "public_id": r["public_id"],
         }
         for r in rows
     ]
@@ -1112,6 +1170,23 @@ def get_user_by_username(username: str) -> dict | None:
     return {"id": row["id"], "username": row["username"]} if row else None
 
 
+def get_user_by_public_id(public_id: str) -> dict | None:
+    """
+    Retrouve un compte par son identifiant unique et stable (voir
+    _generate_unique_public_id) — c'est celui-ci qui sert de base fiable
+    au partage d'un menu, contrairement au pseudo (librement modifiable).
+    Insensible à la casse et aux espaces superflus, par tolérance à la
+    recopie manuelle (l'identifiant est généré en majuscules, mais autant
+    ne pas bloquer si la casse ne correspond pas exactement).
+    """
+    with get_conn() as conn:
+        row = conn.execute(
+            text("SELECT id, username, public_id FROM users WHERE UPPER(public_id) = UPPER(:pid)"),
+            {"pid": (public_id or "").strip()},
+        ).mappings().first()
+    return {"id": row["id"], "username": row["username"], "public_id": row["public_id"]} if row else None
+
+
 def get_or_create_user_by_email(email: str) -> dict:
     """
     Authentification via Auth0 (st.login(), voir auth.py) : retrouve le
@@ -1127,9 +1202,11 @@ def get_or_create_user_by_email(email: str) -> dict:
     Au premier login, un pseudo est dérivé automatiquement de la partie
     avant @ de l'email (ex: "jean.dupont@exemple.com" -> "jeandupont"),
     modifiable ensuite via update_username(). C'est ce pseudo — jamais
-    l'email — qui est utilisé partout ailleurs dans l'appli : partage de
-    menus (add_list_share cherche par username), "ajouté par" sur les
-    recettes, affichage dans la sidebar, etc.
+    l'email — qui est affiché partout dans l'appli (sidebar, "ajouté
+    par"...). Pour le PARTAGE d'un menu en revanche, voir public_id :
+    un identifiant généré une fois pour toutes et jamais modifiable
+    ensuite, contrairement au pseudo (add_list_share cherche par
+    public_id, pas par username, précisément pour cette raison).
     """
     email = (email or "").strip()
     with get_conn() as conn:
@@ -1146,10 +1223,12 @@ def get_or_create_user_by_email(email: str) -> dict:
                 "is_admin": bool(row["is_admin"]),
                 "can_manage_products": bool(row["can_manage_products"]),
                 "is_approved": bool(row["is_approved"]),
+                "public_id": row["public_id"],
             }
 
         base = email.split("@")[0] if "@" in email else email
         nickname = _derive_unique_nickname(conn, base)
+        public_id = _generate_unique_public_id(conn)
 
         # La colonne password_hash/salt reste NOT NULL en base pour ne pas
         # casser le schéma existant, mais n'est plus jamais consultée pour
@@ -1161,19 +1240,22 @@ def get_or_create_user_by_email(email: str) -> dict:
         new_id = conn.execute(
             text("""
                 INSERT INTO users
-                (username, email, password_hash, salt, is_editor, is_admin, can_manage_products, is_approved)
+                (username, email, password_hash, salt, is_editor, is_admin, can_manage_products, is_approved, public_id)
                 VALUES
-                (:username, :email, :password_hash, :salt, TRUE, FALSE, FALSE, FALSE)
+                (:username, :email, :password_hash, :salt, TRUE, FALSE, FALSE, FALSE, :public_id)
                 RETURNING id
             """),
-            {"username": nickname, "email": email, "password_hash": digest_hex, "salt": salt_hex},
+            {
+                "username": nickname, "email": email, "password_hash": digest_hex,
+                "salt": salt_hex, "public_id": public_id,
+            },
         ).scalar()
 
     _clear_user_caches()
     return {
         "id": new_id, "username": nickname,
         "is_editor": True, "is_admin": False, "can_manage_products": False,
-        "is_approved": False,
+        "is_approved": False, "public_id": public_id,
     }
 
 
@@ -1693,11 +1775,15 @@ def get_list_shares(list_id: int, owner_user_id: int) -> list[dict]:
     return [{"user_id": r["user_id"], "username": r["username"]} for r in rows]
 
 
-def add_list_share(list_id: int, owner_user_id: int, target_username: str) -> str:
+def add_list_share(list_id: int, owner_user_id: int, target_public_id: str) -> str:
     """
-    Partage une liste avec un compte existant, désigné par son identifiant.
-    Seul·e le·la propriétaire peut partager sa propre liste. Renvoie le nom
-    d'utilisateur (casse d'origine du compte) en cas de succès.
+    Partage une liste avec un compte existant, désigné par son identifiant
+    UNIQUE ET STABLE (public_id — voir _generate_unique_public_id), pas
+    par son pseudo : un pseudo librement modifiable casserait un partage
+    basé dessus si la personne en changeait après coup. Seul·e le·la
+    propriétaire peut partager sa propre liste. Renvoie le pseudo du
+    compte concerné (pour un message de confirmation lisible) en cas de
+    succès.
 
     Lève ListShareError (message prêt à afficher) si :
     - `owner_user_id` n'est pas le·la propriétaire de la liste ;
@@ -1714,11 +1800,11 @@ def add_list_share(list_id: int, owner_user_id: int, target_username: str) -> st
             raise ListShareError("Seul·e le·la propriétaire d'un menu peut le partager.")
 
         target = conn.execute(
-            text("SELECT id, username FROM users WHERE LOWER(username) = LOWER(:username)"),
-            {"username": (target_username or "").strip()},
+            text("SELECT id, username FROM users WHERE UPPER(public_id) = UPPER(:pid)"),
+            {"pid": (target_public_id or "").strip()},
         ).mappings().first()
         if target is None:
-            raise ListShareError(f"Aucun compte trouvé avec l'identifiant « {target_username} ».")
+            raise ListShareError(f"Aucun compte trouvé avec l'identifiant « {target_public_id} ».")
         if target["id"] == owner_user_id:
             raise ListShareError("Impossible de partager un menu avec soi-même.")
 
