@@ -206,7 +206,8 @@ def init_db() -> None:
                 password_hash  TEXT NOT NULL,
                 salt           TEXT NOT NULL,
                 is_editor      BOOLEAN NOT NULL DEFAULT FALSE,
-                is_admin       BOOLEAN NOT NULL DEFAULT FALSE
+                is_admin       BOOLEAN NOT NULL DEFAULT FALSE,
+                is_approved    BOOLEAN NOT NULL DEFAULT FALSE
             )
         """))
         conn.execute(text("""
@@ -379,6 +380,36 @@ def _migrate_schema() -> None:
             CREATE UNIQUE INDEX IF NOT EXISTS users_username_ci_unique_idx
             ON users (LOWER(username))
         """))
+
+        # Accès restreint à des comptes validés manuellement : chaque
+        # nouveau compte auto-créé via Auth0 (get_or_create_user_by_email)
+        # démarre désormais "non validé" (is_approved = FALSE), et reste
+        # bloqué partout sauf "Accueil"/"Comment ça marche" tant qu'un·e
+        # admin ne l'a pas validé depuis "Gestion des utilisateur·rices".
+        #
+        # ATTENTION à l'ordre des deux instructions ci-dessous : on vérifie
+        # D'ABORD si la colonne existe déjà, puis on ne fait le rattrapage
+        # "tout le monde déjà présent est considéré validé" QUE si elle
+        # vient tout juste d'être créée (première fois que cette migration
+        # tourne). Sans cette précaution, exécuter le rattrapage à CHAQUE
+        # démarrage aurait validé automatiquement n'importe quel compte
+        # réellement en attente au prochain redémarrage/redéploiement de
+        # l'app — annulant complètement l'intérêt de cette fonctionnalité.
+        column_already_existed = conn.execute(text(
+            "SELECT 1 FROM information_schema.columns "
+            "WHERE table_name = 'users' AND column_name = 'is_approved'"
+        )).first() is not None
+
+        conn.execute(text(
+            "ALTER TABLE users ADD COLUMN IF NOT EXISTS is_approved BOOLEAN NOT NULL DEFAULT FALSE"
+        ))
+
+        if not column_already_existed:
+            # Première fois : tous les comptes déjà présents utilisaient
+            # l'app avant l'introduction de cette validation manuelle — on
+            # les considère donc déjà validés, pour ne pas se retrouver
+            # bloqué·e hors de sa propre app (y compris le compte admin).
+            conn.execute(text("UPDATE users SET is_approved = TRUE"))
 
         # Détection "recette modifiée depuis l'enregistrement d'un menu"
         # (plutôt que faussement "supprimée") : chaque recette d'un menu
@@ -971,8 +1002,15 @@ def create_user(
     is_editor: bool = False,
     is_admin: bool = False,
     can_manage_products: bool = False,
+    is_approved: bool = True,
 ) -> int:
-    """Crée un nouvel utilisateur."""
+    """
+    Crée un nouvel utilisateur. `is_approved=True` par défaut ici : un
+    compte créé directement par un·e admin depuis "Gestion des
+    utilisateur·rices" est par nature déjà validé par cet acte (contexte
+    différent de get_or_create_user_by_email, où l'auto-inscription via
+    Auth0 démarre elle NON validée).
+    """
 
     digest_hex, salt_hex = _hash_password(password)
 
@@ -980,9 +1018,9 @@ def create_user(
         new_id = conn.execute(
             text("""
                 INSERT INTO users
-                (username, password_hash, salt, is_editor, is_admin, can_manage_products)
+                (username, password_hash, salt, is_editor, is_admin, can_manage_products, is_approved)
                 VALUES
-                (:username, :password_hash, :salt, :is_editor, :is_admin, :can_manage_products)
+                (:username, :password_hash, :salt, :is_editor, :is_admin, :can_manage_products, :is_approved)
                 RETURNING id
             """),
             {
@@ -992,6 +1030,7 @@ def create_user(
                 "is_editor": bool(is_editor),
                 "is_admin": bool(is_admin),
                 "can_manage_products": bool(can_manage_products),
+                "is_approved": bool(is_approved),
             },
         ).scalar()
     _clear_user_caches()
@@ -1036,6 +1075,7 @@ def verify_credentials(
         "is_editor": bool(row["is_editor"]),
         "is_admin": bool(row["is_admin"]),
         "can_manage_products": bool(row["can_manage_products"]),
+        "is_approved": bool(row["is_approved"]),
     }
 
 
@@ -1043,7 +1083,7 @@ def verify_credentials(
 def list_users() -> list[dict]:
     with get_conn() as conn:
         rows = conn.execute(
-            text("SELECT id, username, is_editor, is_admin, can_manage_products FROM users ORDER BY LOWER(username)")
+            text("SELECT id, username, is_editor, is_admin, can_manage_products, is_approved FROM users ORDER BY LOWER(username)")
         ).mappings().all()
     return [
         {
@@ -1052,6 +1092,7 @@ def list_users() -> list[dict]:
             "is_editor": bool(r["is_editor"]),
             "is_admin": bool(r["is_admin"]),
             "can_manage_products": bool(r["can_manage_products"]),
+            "is_approved": bool(r["is_approved"]),
         }
         for r in rows
     ]
@@ -1075,9 +1116,13 @@ def get_or_create_user_by_email(email: str) -> dict:
     """
     Authentification via Auth0 (st.login(), voir auth.py) : retrouve le
     compte associé à cet email (colonne `email`, interne — jamais
-    affichée) ou en crée un nouveau à la volée au tout premier login
-    (statut éditeur·rice par défaut, comme l'ancienne inscription
-    identifiant/mot de passe).
+    affichée) ou en crée un nouveau à la volée au tout premier login.
+
+    `is_approved=FALSE` pour tout nouveau compte : l'app est restreinte
+    aux comptes validés manuellement (voir auth.is_approved, et la page
+    "Gestion des utilisateur·rices" pour valider un compte) — un compte
+    tout juste auto-créé reste bloqué partout, sauf "Accueil" et "Comment
+    ça marche", jusqu'à validation.
 
     Au premier login, un pseudo est dérivé automatiquement de la partie
     avant @ de l'email (ex: "jean.dupont@exemple.com" -> "jeandupont"),
@@ -1100,6 +1145,7 @@ def get_or_create_user_by_email(email: str) -> dict:
                 "is_editor": bool(row["is_editor"]),
                 "is_admin": bool(row["is_admin"]),
                 "can_manage_products": bool(row["can_manage_products"]),
+                "is_approved": bool(row["is_approved"]),
             }
 
         base = email.split("@")[0] if "@" in email else email
@@ -1115,9 +1161,9 @@ def get_or_create_user_by_email(email: str) -> dict:
         new_id = conn.execute(
             text("""
                 INSERT INTO users
-                (username, email, password_hash, salt, is_editor, is_admin, can_manage_products)
+                (username, email, password_hash, salt, is_editor, is_admin, can_manage_products, is_approved)
                 VALUES
-                (:username, :email, :password_hash, :salt, TRUE, FALSE, FALSE)
+                (:username, :email, :password_hash, :salt, TRUE, FALSE, FALSE, FALSE)
                 RETURNING id
             """),
             {"username": nickname, "email": email, "password_hash": digest_hex, "salt": salt_hex},
@@ -1127,6 +1173,7 @@ def get_or_create_user_by_email(email: str) -> dict:
     return {
         "id": new_id, "username": nickname,
         "is_editor": True, "is_admin": False, "can_manage_products": False,
+        "is_approved": False,
     }
 
 
@@ -1197,6 +1244,20 @@ def set_user_role(user_id: int, is_editor: bool, is_admin: bool, can_manage_prod
                     "can_manage_products": bool(can_manage_products), "id": user_id,
                 },
             )
+    _clear_user_caches()
+
+
+def set_user_approved(user_id: int, is_approved: bool) -> None:
+    """
+    Valide (ou révoque la validation d')un compte — voir auth.is_approved,
+    qui bloque l'accès à toute l'app (sauf "Accueil"/"Comment ça marche")
+    tant qu'un compte n'est pas validé.
+    """
+    with get_conn() as conn:
+        conn.execute(
+            text("UPDATE users SET is_approved = :is_approved WHERE id = :id"),
+            {"is_approved": bool(is_approved), "id": user_id},
+        )
     _clear_user_caches()
 
 

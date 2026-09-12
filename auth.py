@@ -119,6 +119,16 @@ def can_manage_products() -> bool:
     return bool(_current_role_info().get("can_manage_products")) or is_admin()
 
 
+def is_approved() -> bool:
+    """
+    Compte validé manuellement par un·e admin (voir "Gestion des
+    utilisateur·rices"). Les admins sont toujours considéré·es validé·es
+    (filet de sécurité — un·e admin ne doit jamais pouvoir se retrouver
+    bloqué·e hors de sa propre app).
+    """
+    return bool(_current_role_info().get("is_approved")) or is_admin()
+
+
 def current_username() -> str | None:
     """
     Garde ce nom de fonction pour compatibilité avec le reste de l'appli,
@@ -273,17 +283,27 @@ def render_sidebar_auth() -> None:
         )
 
 
+APPROVAL_PENDING_MESSAGE = (
+    "🔒 Ton compte est en attente de validation. Consulte la page "
+    "« Comment ça marche ? » pour savoir comment obtenir un accès."
+)
+
+
 def require_editor(
     message: str = "🔒 Connecte-toi (menu de gauche) pour accéder à cette page — c'est gratuit et ça prend 10 secondes.",
 ) -> None:
     """
     À appeler tout en haut d'une page réservée aux éditeurs de recettes.
     Affiche la sidebar de connexion, et arrête l'exécution de la page si
-    l'utilisateur n'est pas connecté avec le statut éditeur (ou admin).
+    l'utilisateur n'est pas connecté avec le statut éditeur (ou admin), ou
+    si son compte n'est pas encore validé.
     """
     render_sidebar_auth()
     if not (is_logged_in() and (is_editor() or is_admin())):
         st.warning(message)
+        st.stop()
+    if not is_approved():
+        st.warning(APPROVAL_PENDING_MESSAGE)
         st.stop()
 
 
@@ -295,6 +315,9 @@ def require_admin(
     if not (is_logged_in() and is_admin()):
         st.warning(message)
         st.stop()
+    if not is_approved():
+        st.warning(APPROVAL_PENDING_MESSAGE)
+        st.stop()
 
 
 def require_product_curator(
@@ -305,17 +328,26 @@ def require_product_curator(
     if not (is_logged_in() and can_manage_products()):
         st.warning(message)
         st.stop()
+    if not is_approved():
+        st.warning(APPROVAL_PENDING_MESSAGE)
+        st.stop()
 
 
 def require_login(
     message: str = "🔒 Connecte-toi (menu de gauche) pour accéder à cette page — c'est gratuit et ça prend 10 secondes.",
 ) -> None:
     """
-    À appeler tout en haut d'une page réservée aux personnes connectées,
-    sans exigence de rôle particulier (éditeur/admin) — ex: « Mes menus »,
-    une fonctionnalité ouverte à tout compte, y compris les lecteur·rices.
+    À appeler tout en haut d'une page réservée aux personnes connectées ET
+    validées, sans exigence de rôle particulier (éditeur/admin). Utilisée
+    aussi bien pour les pages déjà réservées aux comptes (ex: « Mes
+    menus ») que pour fermer une page auparavant ouverte à tout le monde
+    sans connexion (ex: « Composer mon menu »), dans le cadre du passage
+    en accès restreint à des comptes validés manuellement.
     """
     render_sidebar_auth()
     if not is_logged_in():
         st.warning(message)
+        st.stop()
+    if not is_approved():
+        st.warning(APPROVAL_PENDING_MESSAGE)
         st.stop()
