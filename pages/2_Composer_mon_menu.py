@@ -266,9 +266,7 @@ if view == "results":
                 st.switch_page("pages/5_Mes_menus.py")
     else:
         st.caption(
-            "🔒 Connecte-toi (menu de gauche) pour enregistrer ce menu "
-            "sur ton compte, cocher les articles au fur et à mesure de tes "
-            "courses, et retrouver les recettes."
+            "🔒 Page réservée aux utilisateur·rices connecté·es avec un compte validé."
         )
 
     st.stop()
