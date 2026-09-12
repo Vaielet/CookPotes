@@ -263,6 +263,43 @@ else:
                     st.rerun()
 
 existing_recipe_names = db.get_recipe_names()
+all_recipes_full = db.get_all_recipes()
+recipes_by_id = {r["id"]: name for name, r in all_recipes_full.items()}
+
+# ---------------------------------------------------------------------------
+# État de chaque recette du menu par rapport à AUJOURD'HUI : toujours là et
+# inchangée / renommée / modifiée / vraiment supprimée. Basé sur recipe_id
+# (stable même si la recette est renommée depuis), pas sur le nom — voir
+# db.save_shopping_list / db._migrate_schema pour le rattrapage des menus
+# enregistrés avant l'ajout de cet id. Repli sur le nom pour ces
+# anciens menus (uniquement s'il n'a pas changé depuis).
+# ---------------------------------------------------------------------------
+recipe_states = []
+for r in detail["recipes"]:
+    current_name = None
+    if r.get("recipe_id") is not None and r["recipe_id"] in recipes_by_id:
+        current_name = recipes_by_id[r["recipe_id"]]
+    elif r["name"] in existing_recipe_names:
+        current_name = r["name"]
+
+    is_deleted = current_name is None
+    is_modified = False
+    diff = None
+    if not is_deleted:
+        current_recipe = all_recipes_full[current_name]
+        if r.get("recipe_updated_at") and current_recipe.get("updated_at"):
+            is_modified = r["recipe_updated_at"] != current_recipe["updated_at"]
+        if is_modified and r.get("ingredients_snapshot") is not None:
+            new_rows = common.scaled_ingredient_rows(current_recipe, r["people"])
+            diff = common.diff_recipe_ingredients(r["ingredients_snapshot"], new_rows)
+
+    recipe_states.append({
+        **r,
+        "current_name": current_name,
+        "is_deleted": is_deleted,
+        "is_modified": is_modified,
+        "diff": diff,
+    })
 
 # ---------------------------------------------------------------------------
 # Actions sur cette liste : télécharger / ouvrir dans une app, comme sur
@@ -275,15 +312,62 @@ export_grouped: dict[str, list[str]] = {}
 for item in detail["items"]:
     export_grouped.setdefault(item["category"], []).append(item["label"])
 
-# On ne garde que les recettes de la liste qui existent encore — une
-# recette supprimée depuis ne peut plus être imprimée dans le carnet.
-# (Vérification faite sur les noms seulement — pas besoin de charger les
-# photos de toutes les recettes juste pour ça.)
+# On ne garde que les recettes de la liste qui existent VRAIMENT encore
+# (renommées incluses, via current_name) — une recette supprimée depuis ne
+# peut plus être imprimée dans le carnet.
 current_choices = [
-    common.RecipeChoice(name=r["name"], people=r["people"])
-    for r in detail["recipes"] if r["name"] in existing_recipe_names
+    common.RecipeChoice(name=rs["current_name"], people=rs["people"])
+    for rs in recipe_states if not rs["is_deleted"]
 ]
-missing_recipes = [r["name"] for r in detail["recipes"] if r["name"] not in existing_recipe_names]
+missing_recipes = [rs["name"] for rs in recipe_states if rs["is_deleted"]]
+
+# ---------------------------------------------------------------------------
+# Diff agrégé sur TOUT le menu (toutes recettes confondues), pour mettre en
+# évidence les changements directement sur la liste de courses fusionnée —
+# utile si les courses ont déjà été faites : d'un coup d'œil, ce qu'il
+# manque peut-être ou ce qui a été acheté en quantité insuffisante.
+# ---------------------------------------------------------------------------
+old_rows_all: list[tuple] = []
+new_rows_all: list[tuple] = []
+has_any_snapshot = False
+for rs in recipe_states:
+    if rs.get("ingredients_snapshot") is not None:
+        has_any_snapshot = True
+        old_rows_all.extend(rs["ingredients_snapshot"])
+    if not rs["is_deleted"]:
+        new_rows_all.extend(common.scaled_ingredient_rows(all_recipes_full[rs["current_name"]], rs["people"]))
+
+merged_diff = common.diff_recipe_ingredients(old_rows_all, new_rows_all) if has_any_snapshot else None
+
+# {nom_canonique: {"kind": ..., "text": ...}} — un seul message par nom
+# (si un même ingrédient a plusieurs unités avec des changements de nature
+# différente, un seul s'affiche ; cas rare, simplification acceptée).
+merged_warnings: dict[str, dict] = {}
+if merged_diff:
+    for name, qty, unit in merged_diff["added"]:
+        merged_warnings[name] = {
+            "kind": "added",
+            "text": f"🆕 **{name.capitalize()}** — nouvel ingrédient, absent de ta liste initiale "
+                    f"({common.format_quantity(qty)} {unit}).",
+        }
+    for name, qty, unit in merged_diff["removed"]:
+        merged_warnings[name] = {
+            "kind": "removed",
+            "text": "➖ Retiré d'une recette depuis — tu n'en as peut-être plus besoin.",
+        }
+    for name, old_qty, new_qty, unit in merged_diff["changed"]:
+        if new_qty > old_qty:
+            merged_warnings[name] = {
+                "kind": "increased",
+                "text": f"⚠️ Quantité augmentée depuis l'enregistrement (c'était "
+                        f"{common.format_quantity(old_qty)} {unit}) — il t'en manque peut-être.",
+            }
+        else:
+            merged_warnings[name] = {
+                "kind": "decreased",
+                "text": f"ℹ️ Quantité diminuée depuis l'enregistrement (c'était "
+                        f"{common.format_quantity(old_qty)} {unit}) — tu en as peut-être acheté trop.",
+            }
 
 
 # ---------------------------------------------------------------------------
@@ -334,6 +418,23 @@ with st.expander("🛒 Liste de courses"):
                 item["label"], value=item["checked"], key=item_key,
                 on_change=_toggle_item, args=(item["id"], user_id, item_key),
             )
+            # Met en évidence les articles dont la quantité a changé (ou
+            # qui ne sont plus nécessaires) depuis l'enregistrement — utile
+            # si les courses ont déjà été faites. "added" n'a pas de case à
+            # cocher existante ici (jamais enregistré à l'origine), affiché
+            # séparément juste en dessous.
+            item_name = item["label"].split(" : ", 1)[0].strip().lower()
+            warning = merged_warnings.get(item_name)
+            if warning and warning["kind"] != "added":
+                st.caption(warning["text"])
+
+    new_ingredient_texts = [w["text"] for w in merged_warnings.values() if w["kind"] == "added"]
+    if new_ingredient_texts:
+        st.info(
+            "**Nouveaux ingrédients apparus dans une recette depuis l'enregistrement "
+            "de ce menu** (absents de la liste ci-dessus) :\n\n"
+            + "\n".join(f"- {t}" for t in new_ingredient_texts)
+        )
 
 
 # ---------------------------------------------------------------------------
@@ -342,27 +443,47 @@ with st.expander("🛒 Liste de courses"):
 
 st.subheader("🍽️ Recettes de ce menu")
 
-thumbnails = db.get_recipe_thumbnails(
-    tuple(sorted({r["name"] for r in detail["recipes"] if r["name"] in existing_recipe_names}))
-)
-
 recipe_cols = st.columns(3)
 
-for i, r in enumerate(detail["recipes"]):
+for i, rs in enumerate(recipe_states):
     with recipe_cols[i % 3]:
         with st.container(border=True):
-            if r["name"] in existing_recipe_names:
-                common.render_recipe_image_card(r["name"], thumbnails.get(r["name"]))
+            if rs["is_deleted"]:
+                st.markdown(f"**{rs['name']}**")
             else:
-                st.markdown(f"**{r['name']}**")
-            st.caption(f"{r['people']} personne(s)")
-            if r["name"] not in existing_recipe_names:
+                # all_recipes_full est déjà chargé en entier plus haut (il
+                # nous fallait de toute façon les ingrédients actuels pour
+                # le diff agrégé) : on réutilise directement son image,
+                # pas besoin d'un second aller-retour pour les vignettes.
+                common.render_recipe_image_card(
+                    rs["current_name"], all_recipes_full[rs["current_name"]]["image"]
+                )
+            st.caption(f"{rs['people']} personne(s)")
+
+            if rs["is_deleted"]:
                 st.caption("⚠️ Cette recette a été supprimée depuis.")
-            elif st.button("👀 Voir la recette", key=f"viewrecipe_{selected_id}_{i}", use_container_width=True):
-                # Chargement complet (ingrédients/instructions) volontairement
-                # différé jusqu'ici, sur un clic explicite — pas à chaque
-                # rerun. La photo, elle, est déjà chargée ci-dessus (vignette).
-                _recipe_dialog(r["name"], r["people"], db.get_all_recipes()[r["name"]])
+                continue
+
+            if rs["current_name"] != rs["name"]:
+                st.caption(f"ℹ️ Renommée depuis (« {rs['name']} » à l'origine).")
+
+            if rs["is_modified"]:
+                st.caption("✏️ Cette recette a été modifiée depuis, vérifie ta liste.")
+                diff = rs["diff"]
+                if diff and (diff["added"] or diff["removed"] or diff["changed"]):
+                    with st.expander("Voir ce qui a changé"):
+                        for name, qty, unit in diff["added"]:
+                            st.markdown(f"- 🆕 Ajouté : {common.format_quantity(qty)} {unit} de {name.capitalize()}")
+                        for name, qty, unit in diff["removed"]:
+                            st.markdown(f"- ➖ Retiré : {common.format_quantity(qty)} {unit} de {name.capitalize()}")
+                        for name, old_qty, new_qty, unit in diff["changed"]:
+                            st.markdown(
+                                f"- 🔁 {name.capitalize()} : "
+                                f"{common.format_quantity(old_qty)} → {common.format_quantity(new_qty)} {unit}"
+                            )
+
+            if st.button("👀 Voir la recette", key=f"viewrecipe_{selected_id}_{i}", use_container_width=True):
+                _recipe_dialog(rs["current_name"], rs["people"], all_recipes_full[rs["current_name"]])
 
 with st.expander("Téléchargement"):
 
@@ -385,12 +506,11 @@ with st.expander("Téléchargement"):
             st.subheader("📕 Carnet de recettes")
             booklet_key = f"_booklet_pdf_{selected_id}"
             if st.button("📖 Générer le carnet de recettes", use_container_width=True, disabled=not current_choices):
-                # Chargement complet (avec photos) volontairement différé jusqu'ici :
-                # seule une action explicite et ponctuelle le déclenche, jamais un
-                # simple rerun (case cochée, etc.).
-                all_recipes = db.get_all_recipes()
+                # all_recipes_full est déjà chargé en entier plus haut (il
+                # nous fallait les ingrédients actuels pour le diff) : plus
+                # besoin d'un second appel ici comme avant.
                 st.session_state[booklet_key] = common.build_recipe_booklet_pdf(
-                    current_choices, all_recipes, title=list_title,
+                    current_choices, all_recipes_full, title=list_title,
                 )
             if st.session_state.get(booklet_key):
                 st.download_button(
