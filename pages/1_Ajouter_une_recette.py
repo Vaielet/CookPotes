@@ -64,16 +64,17 @@ def _sections_from_recipe_data(ingredients: dict) -> list:
 
 
 def _blank_form_state() -> None:
-    # Purge les clés de widgets par ligne/section de l'ancien formulaire —
-    # sans ça elles restent orphelines dans session_state indéfiniment
-    # (sans incidence fonctionnelle, puisque les nouvelles lignes ont de
-    # nouveaux uuid, mais autant nettoyer correctement).
-    for sec in st.session_state.get("new_recipe_sections", []):
-        st.session_state.pop(f"secname_{sec['id']}", None)
-        for row in sec["rows"]:
-            st.session_state.pop(f"iname_{row['id']}", None)
-            st.session_state.pop(f"iqty_{row['id']}", None)
-            st.session_state.pop(f"iunit_{row['id']}", None)
+    # Purge TOUTES les clés de widgets par ligne/section de l'ancien
+    # formulaire, par PRÉFIXE plutôt qu'une par une : plus robuste face à
+    # un renommage futur de clé — c'est justement ce qui s'était produit
+    # ici (le menu déroulant d'unité utilise iunit_select_{id} et
+    # iunit_custom_{id} depuis l'ajout de la saisie libre, mais cette
+    # purge ciblait encore l'ancien nom iunit_{id}, qui n'existe plus :
+    # ces clés n'étaient donc jamais nettoyées).
+    prefixes = ("secname_", "iname_", "iqty_", "iunit_")
+    for key in list(st.session_state.keys()):
+        if key.startswith(prefixes):
+            del st.session_state[key]
 
     st.session_state["form_mode"] = "add"
     st.session_state["form_recipe_id"] = None
