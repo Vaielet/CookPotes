@@ -323,6 +323,9 @@ liste des comptes (pseudo, e-mail, identifiant unique) mais n'a pas accès
 
 **Hébergement** : les données sont stockées sur [Supabase](https://supabase.com)
 (base de données PostgreSQL). 
+
+NB : les informations ci-dessus sont données à titre informatif par souci de transparence. 
+Il ne s'agit pas d'une politique de confidentialité formelle.
                 """
             )
             
