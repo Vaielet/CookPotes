@@ -241,6 +241,8 @@ st.caption(
 )
 
 sorted_units = sorted(common.COMMON_UNITS)  # avant la boucle
+OTHER_OPTION = "Autre (préciser)…"
+options_with_other = sorted_units + [OTHER_OPTION]
 
 for sec in st.session_state.new_recipe_sections:
     with st.container(border=True):
@@ -271,12 +273,24 @@ for sec in st.session_state.new_recipe_sections:
                 "Quantité", value=float(row["qty"]), min_value=0.0, step=0.5,
                 key=f"iqty_{row['id']}", label_visibility="collapsed",
             )
-            row["unit"] = r3.selectbox(
+            current_selection = row["unit"] if row["unit"] in sorted_units else OTHER_OPTION
+
+            selection = r3.selectbox(
                 "Unité",
-                options=sorted_units,
-                index=sorted_units.index(row["unit"]) if row["unit"] in sorted_units else 0,
-                key=f"iunit_{row['id']}", label_visibility="collapsed",
+                options=options_with_other,
+                index=options_with_other.index(current_selection),
+                key=f"iunit_select_{row['id']}", label_visibility="collapsed",
             )
+            
+            if selection == OTHER_OPTION:
+                row["unit"] = r3.text_input(
+                    "Unité personnalisée",
+                    value=row["unit"] if row["unit"] not in sorted_units else "",
+                    key=f"iunit_custom_{row['id']}", label_visibility="collapsed",
+                    placeholder="ex. : pincée, botte...",
+                )
+            else:
+                row["unit"] = selection
             if r4.button("🗑️", key=f"delrow_{row['id']}"):
                 rows_to_delete = row["id"]
 
