@@ -148,10 +148,7 @@ if not lists_summary:
         "« 💾 Enregistrer dans mon compte »."
     )
 
-    if st.button(
-        "Composer mon menu", key="coposer_menu_btn",
-        type="primary", use_container_width=True,
-    ):
+    if common.icon_button("Composer mon menu", "generer_mon_menu.png", "📋", key="home-btn-generer"):
         st.switch_page("pages/2_Composer_mon_menu.py")
     
     st.stop()
