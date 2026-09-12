@@ -95,9 +95,9 @@ CookPotes, c'est l'application qui vient sauver tes soirées, ton portefeuille e
         
     recipes = db.get_all_recipes()
 
-    st.markdown(
+    st.badge(
         f"Il y a déjà {len(recipes)} recettes prêtes à être ajoutées à ton menu.",
-        unsafe_allow_html=True,
+        color="green",
     )
 
     recent = db.get_recent_recipes(limit=5)
