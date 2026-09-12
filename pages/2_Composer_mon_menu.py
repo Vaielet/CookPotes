@@ -348,7 +348,7 @@ all_authors = db.get_all_authors()
 
 search_query = st.text_input(
     "🔎 Rechercher une recette (titre ou ingrédient)",
-    placeholder="Ecris un ingrédient ici",
+    placeholder="ex. : poulet, courgette, curry...",
 ).strip().lower()
 
 filter_cols = st.columns(2)
@@ -358,7 +358,6 @@ if all_tags:
         "🏷️ Filtrer par catégorie (optionnel)",
         options=all_tags,
         help="Affiche uniquement les recettes ayant TOUTES les catégories sélectionnées.",
-        placeholder="Choisis des catégories",
     )
 
 author_filter = []
@@ -367,7 +366,6 @@ if all_authors:
         "👤 Filtrer par auteur·rice (optionnel)",
         options=all_authors,
         help="Affiche uniquement les recettes ajoutées par les auteurs sélectionnés.",
-        placeholder="Choisis un·e auteur·rice",
     )
 
 
@@ -400,14 +398,20 @@ if (search_query or tag_filter or author_filter) and not names:
 
 # ---------------------------------------------------------------------------
 # Grille de recettes responsive — cartes à largeur FIXE (jamais étirées ni
-# compressées), nombre de colonnes par ligne qui s'adapte à la largeur de
-# l'écran (façon e-shop).
+# compressées), nombre de cartes par ligne qui s'adapte à la largeur de
+# l'écran, sans aucune limite fixe (façon e-shop, comme sur la page
+# d'accueil).
 # ---------------------------------------------------------------------------
 # st.columns() ne permet pas nativement un vrai flux de type CSS grid : les
-# colonnes se rétrécissent mais ne repassent jamais à la ligne. On simule ça
-# en demandant à chaque fois GRID_COLUMNS colonnes (le maximum voulu sur
-# grand écran), puis en forçant en CSS ces colonnes à une largeur fixe et à
-# passer à la ligne (flex-wrap) quand elles ne tiennent plus.
+# colonnes se rétrécissent mais ne repassent jamais à la ligne — SAUF si
+# elles sont TOUTES créées en un seul appel st.columns(N), dans un seul bloc
+# horizontal Streamlit : le CSS (flex-wrap, plus bas) peut alors les
+# répartir sur autant de lignes que nécessaire, avec autant de cartes par
+# ligne que la largeur de l'écran le permet. C'est pour ça que TOUTES les
+# cartes (+ la vignette "ajouter une recette") sont créées d'un coup avec
+# un seul st.columns(...), plutôt que par groupes de N comme avant (ce qui
+# plafonnait artificiellement le nombre de cartes par ligne, même sur un
+# écran assez large pour en accueillir davantage).
 #
 # `flex: 0 0 CARD_WIDTH_PXpx` (au lieu de `flex: 1 1 ...`) est le point
 # important : flex-grow à 0 empêche les cartes de s'ÉTIRER pour remplir la
@@ -417,7 +421,6 @@ if (search_query or tag_filter or author_filter) and not names:
 # carte strictement identique quelle que soit la largeur d'écran — seul le
 # nombre de cartes par ligne change (calculé par le navigateur via
 # flex-wrap, sans JS).
-GRID_COLUMNS = 4
 CARD_WIDTH_PX = 300  # ordinateur : taille strictement fixe (ne rétrécit jamais)
 CARD_MIN_WIDTH_PX = 280  # smartphone : peut rétrécir jusqu'à cette largeur
 CARD_MAX_WIDTH_PX = 350  # smartphone : peut grandir jusqu'à cette largeur
@@ -483,11 +486,13 @@ st.markdown(
 )
 
 with st.container(key="recipe_grid"):
-    columns = []
+    # Un seul st.columns(...) pour TOUTES les cartes + la vignette
+    # "ajouter une recette" (voir le commentaire plus haut sur pourquoi) —
+    # plus de plafond artificiel du nombre de cartes par ligne.
+    columns = st.columns(len(names) + 1, gap="small")
+
     for i, name in enumerate(names):
-        if i % GRID_COLUMNS == 0:
-            columns = st.columns(GRID_COLUMNS, gap="small")
-        col = columns[i % GRID_COLUMNS]
+        col = columns[i]
 
         recipe = recipes[name]
         base = recipe["portions_base"]
@@ -598,14 +603,11 @@ with st.container(key="recipe_grid"):
                         cart_ids.add(recipe["id"])
                         st.rerun()
 
-    # Vignette "Ajouter une recette", à la fin de la grille, avec le même
-    # style de carte que les recettes — sur la même ligne que la dernière
-    # carte s'il reste de la place, sinon elle démarre une nouvelle ligne
-    # (même logique de colonnes que la boucle ci-dessus).
-    add_index = len(names)
-    if add_index % GRID_COLUMNS == 0:
-        columns = st.columns(GRID_COLUMNS, gap="medium")
-    add_col = columns[add_index % GRID_COLUMNS]
+    # Vignette "Ajouter une recette", à la toute fin de la grille — dernier
+    # slot du même st.columns(...) que les cartes ci-dessus, donc elle se
+    # positionne naturellement à la suite (même ligne s'il reste de la
+    # place, sinon nouvelle ligne, géré par le flex-wrap CSS).
+    add_col = columns[len(names)]
     with add_col:
         with st.container(border=True):
             st.markdown(
