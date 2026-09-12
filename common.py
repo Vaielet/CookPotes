@@ -50,12 +50,15 @@ UNIT_CONVERSIONS = {
     "l": ("ml", 1000),
     "litre": ("ml", 1000),
 
+    "cl": ("ml", 10),
+    "centilitre": ("ml", 10),
+
     "kg": ("g", 1000),
 }
 
 # Unités suggérées dans le formulaire d'ajout de recette
 COMMON_UNITS = [
-    "g", "kg", "ml", "l", "cac", "cas", "pièce", "gousse",
+    "g", "kg", "ml","cl", "l", "cac", "cas", "pièce", "gousse",
     "tranche", "feuilles", "brins", "cube", "pincée", "unité","botte",
 ]
 
