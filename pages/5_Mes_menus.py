@@ -157,7 +157,7 @@ if not lists_summary:
 def _list_label(l: dict) -> str:
     title = l["reference"] or "Liste sans nom"
     date = common.format_datetime(l["created_at"])
-    label = f"{title} — {date} ({l['checked_items']}/{l['total_items']} cochés)"
+    label = f"{title} — créé le {date}"
     if not l["is_owner"]:
         label += f" · partagé par {l['owner_username']}"
     return label
