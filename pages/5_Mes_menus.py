@@ -153,14 +153,14 @@ with st.expander("⭐ Mes favoris de partage"):
         with st.form("_add_favorite_form", clear_on_submit=True):
             new_favorite_id = st.text_input(
                 "Identifiant unique de la personne à ajouter",
-                help="Visible dans son propre menu « 🆔 Mon identifiant & pseudo » (sidebar).",
+                help="Visible dans son propre menu «Mon identifiant & pseudo » (sidebar).",
                 placeholder="ex : 3AUJVM8B",
             )
             new_favorite_label = st.text_input(
                 "Prénom ou surnom (pour la retrouver facilement)",
-                help="C'est ce prénom/surnom qui sera affiché — même si "
+                help="C'est ce prénom/surnom qui sera affiché dans tes favoris — même si "
                      "cette personne change de pseudo par la suite.",
-                placeholder="ex : Maman, Coloc, Julie...",
+                placeholder="Son nom ou surnom",
             )
             add_favorite_submitted = st.form_submit_button("⭐ Ajouter aux favoris")
         if add_favorite_submitted:
