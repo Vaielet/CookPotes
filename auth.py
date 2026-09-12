@@ -260,7 +260,7 @@ def render_sidebar_auth() -> None:
                     logout()
         else:
             st.caption(
-                "🔒 Page réservée aux utilisateur·rices connecté·es avec un compte validé."
+                "🔒 Connecte-toi ou crée un compte pour accéder à l'app."
             )
             if st.button(
                 "Se connecter / créer un compte", key="_auth_login_btn",
