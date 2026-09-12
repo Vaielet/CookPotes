@@ -30,7 +30,7 @@ with col1:
     "composer ton menu. Indique le "
     "nombre de personnes pour chaque recette. Télécharge "
     "ta liste de courses et le carnet avec les recettes sélectionnées en PDF. "
-    "Si tu as un compte, tu peux enregistrer ton menu pour consulter "
+    "Tu peux enregistrer ton menu pour consulter "
     "la liste de courses et les recettes plus tard, directement dans l'app.")
 
 with col2:
