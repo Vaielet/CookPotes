@@ -472,6 +472,16 @@ if st.session_state.get("_pending_confirm_save"):
             "fausse toute la liste, et la personne qui fait les courses "
             "n'achètera pas la bonne quantité.*"
         )
+
+        st.markdown(f"**La liste d'ingrédients pour {int(portions_base)} personne(s) est :**")
+        for section_name, rows in sections.items():
+            if len(sections) > 1:
+                st.markdown(f"*{section_name}*")
+            for ingredient_name, qty, unit in rows:
+                qty_str = common.format_quantity(Fraction(str(qty)).limit_denominator(100))
+                unit_str = f" {unit}" if unit and unit != "unité" else ""
+                st.markdown(f"* {ingredient_name} : {qty_str}{unit_str}")
+
         confirm_cols = st.columns(2)
         if confirm_cols[0].button(
             "✅ Oui, tout est correct — enregistrer", type="primary", use_container_width=True,
