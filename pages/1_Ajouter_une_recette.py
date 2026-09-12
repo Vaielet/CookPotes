@@ -463,24 +463,32 @@ if st.session_state.get("_pending_confirm_save"):
         # que rien n'a changé.
         st.session_state["_pending_confirm_save"] = False
     else:
-        st.warning(
-            "⚠️ **As-tu bien vérifié les quantités et les unités de "
-            "chaque ingrédient ?**\n\n"
-            "*Elles servent à générer automatiquement la liste de "
-            "courses de tou·tes les CookPotes qui composeront un menu "
-            "avec cette recette : une quantité ou une unité incorrecte "
-            "fausse toute la liste, et la personne qui fait les courses "
-            "n'achètera pas la bonne quantité.*"
-        )
-
-        st.markdown(f"**La liste d'ingrédients pour {int(portions_base)} personne(s) est :**")
+        # Un seul st.warning() (pas plusieurs st.markdown séparés) : c'est
+        # le seul moyen que tout — explication ET liste d'ingrédients —
+        # apparaisse DANS le même rectangle jaune. La liste d'ingrédients
+        # est formatée comme une vraie liste à puces Markdown (pas des
+        # lignes séparées par des sauts de paragraphe) : c'est ce qui lui
+        # donne un interligne compact, sans espace superflu entre chaque
+        # ingrédient.
+        warning_lines = [
+            "⚠️ **As-tu bien vérifié les quantités et les unités de chaque ingrédient ?**",
+            "",
+            "*Elles servent à générer automatiquement la liste de courses de "
+            "tou·tes les CookPotes qui composeront un menu avec cette recette : "
+            "une quantité ou une unité incorrecte fausse toute la liste, et la "
+            "personne qui fait les courses n'achètera pas la bonne quantité.*",
+            "",
+            f"**La liste d'ingrédients pour {int(portions_base)} personne(s) est :**",
+        ]
         for section_name, rows in sections.items():
             if len(sections) > 1:
-                st.markdown(f"*{section_name}*")
+                warning_lines.append(f"**{section_name}**")
             for ingredient_name, qty, unit in rows:
                 qty_str = common.format_quantity(Fraction(str(qty)).limit_denominator(100))
                 unit_str = f" {unit}" if unit and unit != "unité" else ""
-                st.markdown(f"* {ingredient_name} : {qty_str}{unit_str}")
+                warning_lines.append(f"* {ingredient_name} : {qty_str}{unit_str}")
+
+        st.warning("\n".join(warning_lines))
 
         confirm_cols = st.columns(2)
         if confirm_cols[0].button(
