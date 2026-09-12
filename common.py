@@ -774,21 +774,11 @@ class ShoppingList:
                 formatted_parts.append((qty_str, None if is_countable else display_unit))
 
             label = name.capitalize()
-
-            if len(formatted_parts) == 1:
-                # Cas de très loin le plus fréquent (une seule unité pour
-                # cet ingrédient) : format inchangé, identique à avant.
-                qty_str, unit_label = formatted_parts[0]
-                if unit_label:
-                    text = f"{qty_str} {unit_label} de {label}"
-                else:
-                    text = f"{qty_str} x {label}"
-            else:
-                pieces = [
-                    f"{qty_str} {unit_label}" if unit_label else qty_str
-                    for qty_str, unit_label in formatted_parts
-                ]
-                text = " + ".join(pieces) + f" de {label}"
+            pieces = [
+                f"{qty_str} {unit_label}" if unit_label else qty_str
+                for qty_str, unit_label in formatted_parts
+            ]
+            text = f"{label} : {' + '.join(pieces)}"
 
             category = self.categories.get(name, DEFAULT_CATEGORY)
             grouped[category].append(text)
