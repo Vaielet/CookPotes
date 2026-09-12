@@ -658,7 +658,7 @@ elif reference_duplicate:
     st.caption("⚠️ Tu as déjà un menu enregistré avec cette référence. Choisis-en une autre.")
 
 if st.button(
-    "🧾 Générer la liste de courses et le carnet de recettes",
+    "Générer la liste de courses et le carnet de recettes",
     type="primary",
     disabled=len(selected_choices) == 0 or reference_missing or reference_duplicate,
 ):
