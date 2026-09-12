@@ -324,7 +324,7 @@ with cart_col:
                     f"⚠️ Tu as déjà un menu enregistré avec cette référence. Choisis-en une autre."
                 )
             if st.button(
-                "🧾 Générer la liste de courses et le carnet de recette",
+                "Générer la liste de courses et le carnet de recette",
                 key="cart_generate",
                 type="primary",
                 use_container_width=True,
