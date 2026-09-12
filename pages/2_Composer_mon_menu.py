@@ -35,7 +35,7 @@ recipes = db.get_all_recipes()
 if not recipes:
     st.warning(
         "Aucune recette n'est enregistrée pour l'instant. "
-        "Rends-toi sur la page « 🍳 Ajouter une recette » pour commencer."
+        "Rends-toi sur la page « Ajouter une recette » pour commencer."
     )
     st.stop()
 
