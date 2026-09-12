@@ -63,19 +63,45 @@ def _sections_from_recipe_data(ingredients: dict) -> list:
     return sections or [_new_section()]
 
 
+def _gkey(base: str) -> str:
+    """
+    Clé de widget suffixée par la "génération" courante du formulaire (voir
+    _blank_form_state/_load_edit_form_state) — plutôt que de compter sur le
+    simple retrait d'une clé FIXE de session_state pour qu'un widget se
+    réaffiche vide. Les deux approches sont documentées comme valides côté
+    Streamlit, mais en pratique, sur cette appli, seule la clé-qui-change
+    s'est révélée fiable (déjà utilisée pour les lignes d'ingrédients et la
+    photo — les seuls champs qui se réinitialisaient vraiment) : les champs
+    à clé fixe (nom, portions, description...) restaient remplis après un
+    simple .pop(), malgré un traitement du drapeau de réinitialisation bien
+    placé avant tout widget. On généralise donc ici la technique qui
+    fonctionne déjà, à tous les champs.
+    """
+    return f"{base}_{st.session_state['_form_generation']}"
+
+
 def _blank_form_state() -> None:
-    # Purge TOUTES les clés de widgets par ligne/section de l'ancien
-    # formulaire, par PRÉFIXE plutôt qu'une par une : plus robuste face à
-    # un renommage futur de clé — c'est justement ce qui s'était produit
-    # ici (le menu déroulant d'unité utilise iunit_select_{id} et
-    # iunit_custom_{id} depuis l'ajout de la saisie libre, mais cette
-    # purge ciblait encore l'ancien nom iunit_{id}, qui n'existe plus :
-    # ces clés n'étaient donc jamais nettoyées).
+    old_generation = st.session_state.get("_form_generation")
+
+    # Purge les clés de lignes/sections de l'ancien formulaire (un uuid par
+    # ligne/section, indépendant de la génération — voir _new_row/_new_section).
     prefixes = ("secname_", "iname_", "iqty_", "iunit_")
     for key in list(st.session_state.keys()):
         if key.startswith(prefixes):
             del st.session_state[key]
 
+    # Purge les clés des champs généraux (nom, portions, description...) de
+    # l'ANCIENNE génération — voir _gkey(). Sans ça, ces clés s'accumulent
+    # indéfiniment dans session_state au fil des ajouts successifs pendant
+    # une même session (fuite de mémoire mineure, sans autre conséquence
+    # puisqu'une nouvelle génération ne les regarde jamais).
+    if old_generation:
+        old_suffix = f"_{old_generation}"
+        for key in list(st.session_state.keys()):
+            if key.endswith(old_suffix):
+                del st.session_state[key]
+
+    st.session_state["_form_generation"] = uuid.uuid4().hex
     st.session_state["form_mode"] = "add"
     st.session_state["form_recipe_id"] = None
     st.session_state["form_existing_image"] = None
@@ -83,18 +109,11 @@ def _blank_form_state() -> None:
     st.session_state["form_created_by"] = None
     st.session_state["form_created_at"] = None
     st.session_state.new_recipe_sections = [_new_section()]
-    st.session_state.pop("new_recipe_name", None)
-    st.session_state.pop("new_recipe_portions", None)
-    st.session_state.pop("new_recipe_instructions", None)
-    st.session_state.pop("new_recipe_tags_select", None)
-    st.session_state.pop("new_recipe_tags_custom", None)
-    st.session_state.pop("new_recipe_description", None)
-    st.session_state.pop("new_recipe_prep_time", None)
-    st.session_state.pop("new_recipe_cook_time", None)
     st.session_state["_uploader_key"] = f"uploader_{uuid.uuid4().hex}"
 
 
 def _load_edit_form_state(recipe: dict) -> None:
+    st.session_state["_form_generation"] = uuid.uuid4().hex  # voir _gkey : jamais d'ancienne valeur qui traîne
     st.session_state["form_mode"] = "edit"
     st.session_state["form_recipe_id"] = recipe["id"]
     st.session_state["form_existing_image"] = recipe["image"]
@@ -102,12 +121,12 @@ def _load_edit_form_state(recipe: dict) -> None:
     st.session_state["form_created_by"] = recipe.get("created_by")
     st.session_state["form_created_at"] = recipe.get("created_at")
     st.session_state.new_recipe_sections = _sections_from_recipe_data(recipe["ingredients"])
-    st.session_state["new_recipe_name"] = recipe["name"]
-    st.session_state["new_recipe_portions"] = recipe["portions_base"]
-    st.session_state["new_recipe_instructions"] = "\n".join(recipe["instructions"])
-    st.session_state["new_recipe_description"] = recipe.get("description", "") or ""
-    st.session_state["new_recipe_prep_time"] = recipe.get("prep_time_minutes") or 0
-    st.session_state["new_recipe_cook_time"] = recipe.get("cook_time_minutes") or 0
+    st.session_state[_gkey("new_recipe_name")] = recipe["name"]
+    st.session_state[_gkey("new_recipe_portions")] = recipe["portions_base"]
+    st.session_state[_gkey("new_recipe_instructions")] = "\n".join(recipe["instructions"])
+    st.session_state[_gkey("new_recipe_description")] = recipe.get("description", "") or ""
+    st.session_state[_gkey("new_recipe_prep_time")] = recipe.get("prep_time_minutes") or 0
+    st.session_state[_gkey("new_recipe_cook_time")] = recipe.get("cook_time_minutes") or 0
 
     # Répartit les tags existants entre ceux qui figurent dans la liste
     # suggérée (multiselect) et les tags personnalisés (champ texte libre).
@@ -115,8 +134,8 @@ def _load_edit_form_state(recipe: dict) -> None:
     known_lower = {t.lower() for t in common.COMMON_TAGS}
     preset_tags = [t for t in existing_tags if t.lower() in known_lower]
     custom_tags = [t for t in existing_tags if t.lower() not in known_lower]
-    st.session_state["new_recipe_tags_select"] = preset_tags
-    st.session_state["new_recipe_tags_custom"] = ", ".join(custom_tags)
+    st.session_state[_gkey("new_recipe_tags_select")] = preset_tags
+    st.session_state[_gkey("new_recipe_tags_custom")] = ", ".join(custom_tags)
 
     st.session_state["_uploader_key"] = f"uploader_{uuid.uuid4().hex}"
 
@@ -170,40 +189,40 @@ st.subheader("Informations générales")
 
 c1, c2 = st.columns([2, 1])
 recipe_name = c1.text_input(
-    "Nom de la recette", key="new_recipe_name", placeholder="ex : Curry de pois chiches",
+    "Nom de la recette", key=_gkey("new_recipe_name"), placeholder="ex : Curry de pois chiches",
     max_chars=common.MAX_TITLE_CHARS
 )
 portions_base = c2.number_input(
-    "Nombre de personnes (base)", min_value=1, step=1, key="new_recipe_portions"
+    "Nombre de personnes (base)", min_value=1, step=1, key=_gkey("new_recipe_portions")
 )
 
 time_cols = st.columns(2)
 prep_time = time_cols[0].number_input(
-    "⏱️ Temps de préparation (minutes)", min_value=0, step=5, key="new_recipe_prep_time"
+    "⏱️ Temps de préparation (minutes)", min_value=0, step=5, key=_gkey("new_recipe_prep_time")
 )
 cook_time = time_cols[1].number_input(
-    "🔥 Temps de cuisson (minutes)", min_value=0, step=5, key="new_recipe_cook_time"
+    "🔥 Temps de cuisson (minutes)", min_value=0, step=5, key=_gkey("new_recipe_cook_time")
 )
 
 description = st.text_area(
     "Un mot sur cette recette — pourquoi vous l'aimez bien (optionnel)",
-    key="new_recipe_description",
+    key=_gkey("new_recipe_description"),
     max_chars=common.MAX_DESCRIPTION_CHARS,
     height=80,
     placeholder="Le plat réconfortant de mamie, parfait les soirs d'hiver...",
 )
-st.caption(f"{len(st.session_state.get('new_recipe_description') or '')}/{common.MAX_DESCRIPTION_CHARS} caractères")
+st.caption(f"{len(st.session_state.get(_gkey('new_recipe_description')) or '')}/{common.MAX_DESCRIPTION_CHARS} caractères")
 
 st.markdown("**Catégories**")
 tag_cols = st.columns([2, 2])
 selected_preset_tags = tag_cols[0].multiselect(
     "Catégories suggérées",
     options=common.COMMON_TAGS,
-    key="new_recipe_tags_select",
+    key=_gkey("new_recipe_tags_select"),
 )
 custom_tags_text = tag_cols[1].text_input(
     "Autres catégories (séparées par des virgules)",
-    key="new_recipe_tags_custom",
+    key=_gkey("new_recipe_tags_custom"),
     placeholder="ex : Sans œufs, Recette de grand-mère",
 )
 
@@ -313,7 +332,7 @@ if st.button("+ Ajouter une section (ex : Sauce, Accompagnement)"):
 st.subheader("Instructions")
 instructions_text = st.text_area(
     "Une étape par ligne, sans numérotation",
-    key="new_recipe_instructions",
+    key=_gkey("new_recipe_instructions"),
     height=150,
     placeholder="Épluchez et coupez les légumes...\nFaites revenir dans l'huile d'olive...\n...",
 )
