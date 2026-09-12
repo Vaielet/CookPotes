@@ -110,6 +110,7 @@ def _blank_form_state() -> None:
     st.session_state["form_created_at"] = None
     st.session_state.new_recipe_sections = [_new_section()]
     st.session_state["_uploader_key"] = f"uploader_{uuid.uuid4().hex}"
+    st.session_state["_pending_confirm_save"] = False
 
 
 def _load_edit_form_state(recipe: dict) -> None:
@@ -138,6 +139,7 @@ def _load_edit_form_state(recipe: dict) -> None:
     st.session_state[_gkey("new_recipe_tags_custom")] = ", ".join(custom_tags)
 
     st.session_state["_uploader_key"] = f"uploader_{uuid.uuid4().hex}"
+    st.session_state["_pending_confirm_save"] = False
 
 
 # ---------------------------------------------------------------------------
@@ -407,6 +409,19 @@ st.divider()
 save_label = "💾 Enregistrer les modifications" if editing else "💾 Enregistrer la recette"
 
 if st.button(save_label, type="primary"):
+    st.session_state["_pending_confirm_save"] = True
+
+# Cette partie (validation, puis confirmation, puis enregistrement réel)
+# est traitée en dehors du `if` du bouton ci-dessus, à partir d'un
+# drapeau dans session_state : sinon, le bouton "✅ Oui, tout est
+# correct" ci-dessous — cliqué lors d'un rerun SÉPARÉ de celui où
+# "Enregistrer" a été cliqué — ne serait jamais rendu (même piège que
+# celui déjà documenté plus haut pour le formulaire dynamique). La
+# validation est refaite à chaque passage ici (pas seulement au premier
+# clic) pour toujours refléter la dernière version des champs, y compris
+# si la personne corrige quelque chose entre le clic sur "Enregistrer" et
+# la confirmation.
+if st.session_state.get("_pending_confirm_save"):
     errors = []
 
     name = recipe_name.strip()
@@ -443,73 +458,96 @@ if st.button(save_label, type="primary"):
     if errors:
         for err in errors:
             st.error(err)
+        # Erreurs à corriger : on annule la confirmation en cours plutôt
+        # que de la laisser réapparaître sur un formulaire invalide tant
+        # que rien n'a changé.
+        st.session_state["_pending_confirm_save"] = False
     else:
-        if image_file is not None:
-            image_bytes = image_file.getvalue()
-            image_mime = image_file.type
-        elif editing:
-            image_bytes = st.session_state.get("form_existing_image")
-            image_mime = st.session_state.get("form_existing_image_mime")
-        else:
-            image_bytes = None
-            image_mime = None
-
-        current_user = auth.current_username()
-
-        try:
-            if editing:
-                db.update_recipe(
-                    recipe_id=st.session_state["form_recipe_id"],
-                    name=name,
-                    portions_base=int(portions_base),
-                    image_bytes=image_bytes,
-                    image_mime=image_mime,
-                    sections=sections,
-                    instructions=instructions,
-                    tags=tags,
-                    description=description,
-                    prep_time_minutes=int(prep_time) or None,
-                    cook_time_minutes=int(cook_time) or None,
-                    updated_by=current_user,
-                )
-                flash = f"Recette « {name} » mise à jour avec succès !"
+        st.warning(
+            "⚠️ **As-tu bien vérifié les quantités et les unités de "
+            "chaque ingrédient ?**\n\n"
+            "*Elles servent à générer automatiquement la liste de "
+            "courses de tou·tes les CookPotes qui composeront un menu "
+            "avec cette recette : une quantité ou une unité incorrecte "
+            "fausse toute la liste, et la personne qui fait les courses "
+            "n'achètera pas la bonne quantité.*"
+        )
+        confirm_cols = st.columns(2)
+        if confirm_cols[0].button(
+            "✅ Oui, tout est correct — enregistrer", type="primary", use_container_width=True,
+        ):
+            if image_file is not None:
+                image_bytes = image_file.getvalue()
+                image_mime = image_file.type
+            elif editing:
+                image_bytes = st.session_state.get("form_existing_image")
+                image_mime = st.session_state.get("form_existing_image_mime")
             else:
-                db.add_recipe(
-                    name=name,
-                    portions_base=int(portions_base),
-                    image_bytes=image_bytes,
-                    image_mime=image_mime,
-                    sections=sections,
-                    instructions=instructions,
-                    tags=tags,
-                    description=description,
-                    prep_time_minutes=int(prep_time) or None,
-                    cook_time_minutes=int(cook_time) or None,
-                    created_by=current_user,
-                )
-                flash = f"Recette « {name} » enregistrée avec succès !"
-        except db.IntegrityError:
-            st.error(f"Une recette nommée « {name} » existe déjà. Choisissez un autre nom.")
-        else:
-            # Enregistre/complète chaque produit détecté ci-dessus, qu'il
-            # ait été classé ou laissé "à définir plus tard" — dans les
-            # deux cas, il est reconnu la prochaine fois qu'il est tapé,
-            # au lieu de redemander sans cesse la même chose.
-            for raw, product in to_classify:
-                raw_key = raw.strip().lower()
-                category_choice = st.session_state.get(f"newprod_cat_{raw_key}", NEW_CATEGORY_PLACEHOLDER)
-                category_value = None if category_choice == NEW_CATEGORY_PLACEHOLDER else category_choice
-                synonyms_text = st.session_state.get(f"newprod_syn_{raw_key}", "")
-                synonyms_list = [s.strip() for s in synonyms_text.split(",") if s.strip()]
-                if raw.strip().lower() not in [s.lower() for s in synonyms_list]:
-                    synonyms_list.append(raw.strip())
-                canonical_name = product["canonical"] if product else raw.strip().capitalize()
-                db.upsert_product(canonical_name, category_value, synonyms_list)
-                st.session_state.pop(f"newprod_cat_{raw_key}", None)
-                st.session_state.pop(f"newprod_syn_{raw_key}", None)
+                image_bytes = None
+                image_mime = None
 
-            st.session_state["_flash_success"] = flash
-            st.session_state["_pending_reset"] = True
+            current_user = auth.current_username()
+
+            try:
+                if editing:
+                    db.update_recipe(
+                        recipe_id=st.session_state["form_recipe_id"],
+                        name=name,
+                        portions_base=int(portions_base),
+                        image_bytes=image_bytes,
+                        image_mime=image_mime,
+                        sections=sections,
+                        instructions=instructions,
+                        tags=tags,
+                        description=description,
+                        prep_time_minutes=int(prep_time) or None,
+                        cook_time_minutes=int(cook_time) or None,
+                        updated_by=current_user,
+                    )
+                    flash = f"Recette « {name} » mise à jour avec succès !"
+                else:
+                    db.add_recipe(
+                        name=name,
+                        portions_base=int(portions_base),
+                        image_bytes=image_bytes,
+                        image_mime=image_mime,
+                        sections=sections,
+                        instructions=instructions,
+                        tags=tags,
+                        description=description,
+                        prep_time_minutes=int(prep_time) or None,
+                        cook_time_minutes=int(cook_time) or None,
+                        created_by=current_user,
+                    )
+                    flash = f"Recette « {name} » enregistrée avec succès !"
+            except db.IntegrityError:
+                st.error(f"Une recette nommée « {name} » existe déjà. Choisissez un autre nom.")
+                st.session_state["_pending_confirm_save"] = False
+            else:
+                # Enregistre/complète chaque produit détecté ci-dessus, qu'il
+                # ait été classé ou laissé "à définir plus tard" — dans les
+                # deux cas, il est reconnu la prochaine fois qu'il est tapé,
+                # au lieu de redemander sans cesse la même chose.
+                for raw, product in to_classify:
+                    raw_key = raw.strip().lower()
+                    category_choice = st.session_state.get(f"newprod_cat_{raw_key}", NEW_CATEGORY_PLACEHOLDER)
+                    category_value = None if category_choice == NEW_CATEGORY_PLACEHOLDER else category_choice
+                    synonyms_text = st.session_state.get(f"newprod_syn_{raw_key}", "")
+                    synonyms_list = [s.strip() for s in synonyms_text.split(",") if s.strip()]
+                    if raw.strip().lower() not in [s.lower() for s in synonyms_list]:
+                        synonyms_list.append(raw.strip())
+                    canonical_name = product["canonical"] if product else raw.strip().capitalize()
+                    db.upsert_product(canonical_name, category_value, synonyms_list)
+                    st.session_state.pop(f"newprod_cat_{raw_key}", None)
+                    st.session_state.pop(f"newprod_syn_{raw_key}", None)
+
+                st.session_state["_flash_success"] = flash
+                st.session_state["_pending_reset"] = True
+                st.session_state["_pending_confirm_save"] = False
+                st.rerun()
+
+        if confirm_cols[1].button("Annuler", use_container_width=True):
+            st.session_state["_pending_confirm_save"] = False
             st.rerun()
 
 
