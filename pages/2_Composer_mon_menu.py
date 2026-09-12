@@ -88,6 +88,21 @@ def _sync_people(recipe_id: int, changed_widget: str) -> None:
     st.session_state[other_key] = st.session_state[changed_key]
 
 
+def _reset_all_choices() -> None:
+    """
+    Remet à zéro TOUT ce qui a été choisi sur cette page : le panier de
+    recettes, le nombre de personnes personnalisé pour chacune (sinon une
+    recette réajoutée plus tard garderait un ancien effectif au lieu de
+    repartir sur ses portions de base), et la référence du menu.
+    """
+    cart_ids.clear()
+    for key in list(st.session_state.keys()):
+        if key.startswith("people_card_") or key.startswith("people_cart_"):
+            del st.session_state[key]
+    st.session_state.pop(REFERENCE_MAIN_KEY, None)
+    st.session_state.pop(REFERENCE_CART_KEY, None)
+
+
 # Construit la sélection à partir du panier (persistant), pas seulement des
 # recettes actuellement visibles à l'écran — une recette ajoutée au panier
 # reste sélectionnée même si elle sort de la recherche/du filtre actif.
@@ -317,6 +332,15 @@ with cart_col:
             ):
                 _generate_shopping_list()
                 st.rerun()
+
+    if st.button(
+        "🔄 Réinitialiser tous les choix", key="reset_all_choices",
+        use_container_width=True,
+        help="Vide le menu, remet le nombre de personnes par défaut pour "
+             "chaque recette, et efface la référence saisie.",
+    ):
+        _reset_all_choices()
+        st.rerun()
 
 all_tags = db.get_all_tags()
 all_authors = db.get_all_authors()
