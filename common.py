@@ -822,6 +822,86 @@ def scaled_ingredient_sections(recipe: dict, people: int) -> dict[str, list[str]
     return sections
 
 
+def scaled_ingredient_rows(recipe: dict, people: int) -> list[tuple[str, Fraction, str]]:
+    """
+    Ingrédients d'une recette mis à l'échelle pour `people` personnes, sous
+    forme STRUCTURÉE (nom_canonique, quantité, unité) — déjà passés par
+    match_product() (nom canonique) et normalize_unit() (unité standard),
+    exactement comme le fait build_shopping_list() lors de la fusion en
+    liste de courses.
+
+    Contrairement à scaled_ingredient_sections() (qui renvoie des lignes de
+    texte déjà formatées pour l'affichage), celle-ci renvoie des données
+    encore comparables entre elles — utilisée pour détecter et afficher ce
+    qui a changé dans une recette depuis qu'un menu a été enregistré (voir
+    diff_recipe_ingredients ci-dessous, et db.save_shopping_list qui
+    enregistre cet instantané au moment de la sauvegarde).
+    """
+    base = recipe["portions_base"] or 1
+    ratio = Fraction(int(people), base)
+    rows: list[tuple[str, Fraction, str]] = []
+    for section in recipe["ingredients"].values():
+        for ingredient_name, qty, unit in section:
+            scaled = Fraction(str(qty)).limit_denominator(100) * ratio
+            norm_qty, norm_unit = normalize_unit(scaled, unit)
+            canonical_name, _category = match_product(ingredient_name)
+            rows.append((canonical_name.lower(), norm_qty, norm_unit))
+    return rows
+
+
+def diff_recipe_ingredients(
+    old_rows: list[tuple[str, Fraction, str]],
+    new_rows: list[tuple[str, Fraction, str]],
+) -> dict[str, list]:
+    """
+    Compare deux instantanés d'ingrédients au format renvoyé par
+    scaled_ingredient_rows() — typiquement "au moment de l'enregistrement
+    d'un menu" contre "maintenant" — et renvoie :
+
+        {
+            "added":   [(nom, quantité, unité), ...],  # nouveau, absent avant
+            "removed": [(nom, quantité, unité), ...],  # présent avant, absent maintenant
+            "changed": [(nom, quantité_avant, quantité_après, unité), ...],
+        }
+
+    Regroupe d'abord par (nom, unité) — comme ShoppingList.add() — pour
+    qu'un ingrédient utilisé dans plusieurs sections d'une même recette (ou
+    plusieurs recettes, si on compare au niveau d'un menu entier) soit
+    comparé sur son TOTAL, pas ligne à ligne. Un ingrédient dont l'unité a
+    changé (ex: "g" -> "ml") apparaît comme un retrait + un ajout : il n'y
+    a pas de règle de conversion fiable entre unités différentes (voir
+    ShoppingList.as_grouped_lines), donc pas de "changement" fiable à
+    afficher non plus dans ce cas — les deux évènements sont réels et
+    doivent être vus séparément.
+    """
+    def _totals(rows: list[tuple[str, Fraction, str]]) -> dict[tuple[str, str], Fraction]:
+        totals: dict[tuple[str, str], Fraction] = {}
+        for name, qty, unit in rows:
+            key = (name, unit)
+            totals[key] = totals.get(key, Fraction(0)) + qty
+        return totals
+
+    old_totals = _totals(old_rows)
+    new_totals = _totals(new_rows)
+
+    added: list[tuple[str, Fraction, str]] = []
+    removed: list[tuple[str, Fraction, str]] = []
+    changed: list[tuple[str, Fraction, Fraction, str]] = []
+
+    for key in sorted(set(old_totals) | set(new_totals)):
+        name, unit = key
+        old_qty = old_totals.get(key)
+        new_qty = new_totals.get(key)
+        if old_qty is None:
+            added.append((name, new_qty, unit))
+        elif new_qty is None:
+            removed.append((name, old_qty, unit))
+        elif old_qty != new_qty:
+            changed.append((name, old_qty, new_qty, unit))
+
+    return {"added": added, "removed": removed, "changed": changed}
+
+
 # ---------------------------------------------------------------------------
 # Images des recettes (photo stockée en base sinon image générée en mémoire)
 # ---------------------------------------------------------------------------

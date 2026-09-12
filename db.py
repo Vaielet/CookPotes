@@ -32,10 +32,12 @@ de test qui a validé cette connexion.
 from __future__ import annotations
 
 import hashlib
+import json
 import re
 import secrets
 from contextlib import contextmanager
 from datetime import datetime, timedelta, timezone
+from fractions import Fraction
 
 import streamlit as st
 from sqlalchemy import bindparam, create_engine, text
@@ -225,11 +227,14 @@ def init_db() -> None:
         """))
         conn.execute(text("""
             CREATE TABLE IF NOT EXISTS saved_shopping_list_recipes (
-                id           SERIAL PRIMARY KEY,
-                list_id      INTEGER NOT NULL REFERENCES saved_shopping_lists(id) ON DELETE CASCADE,
-                recipe_name  TEXT NOT NULL,
-                people       INTEGER NOT NULL,
-                position     INTEGER NOT NULL DEFAULT 0
+                id                     SERIAL PRIMARY KEY,
+                list_id                INTEGER NOT NULL REFERENCES saved_shopping_lists(id) ON DELETE CASCADE,
+                recipe_name            TEXT NOT NULL,
+                people                 INTEGER NOT NULL,
+                position               INTEGER NOT NULL DEFAULT 0,
+                recipe_id              INTEGER REFERENCES recipes(id) ON DELETE SET NULL,
+                recipe_updated_at      TEXT,
+                ingredients_snapshot   TEXT
             )
         """))
         conn.execute(text("""
@@ -373,6 +378,40 @@ def _migrate_schema() -> None:
         conn.execute(text("""
             CREATE UNIQUE INDEX IF NOT EXISTS users_username_ci_unique_idx
             ON users (LOWER(username))
+        """))
+
+        # Détection "recette modifiée depuis l'enregistrement d'un menu"
+        # (plutôt que faussement "supprimée") : chaque recette d'un menu
+        # enregistré garde désormais un lien vers son id réel, la date de
+        # dernière modification de la recette au moment de la sauvegarde,
+        # et un instantané JSON de ses ingrédients (déjà mis à l'échelle,
+        # au format canonique — voir common.scaled_ingredient_rows).
+        conn.execute(text(
+            "ALTER TABLE saved_shopping_list_recipes ADD COLUMN IF NOT EXISTS recipe_id INTEGER REFERENCES recipes(id) ON DELETE SET NULL"
+        ))
+        conn.execute(text(
+            "ALTER TABLE saved_shopping_list_recipes ADD COLUMN IF NOT EXISTS recipe_updated_at TEXT"
+        ))
+        conn.execute(text(
+            "ALTER TABLE saved_shopping_list_recipes ADD COLUMN IF NOT EXISTS ingredients_snapshot TEXT"
+        ))
+
+        # Rattrapage pour les menus déjà enregistrés avant cette migration :
+        # on retrouve recipe_id par correspondance de NOM (la seule info
+        # qu'on avait à l'époque). Si le nom a depuis changé, ce
+        # rattrapage ne peut rien pour cette ligne précise (recipe_id
+        # reste NULL, donc traitée comme "supprimée" jusqu'à ce que le
+        # menu soit régénéré) — mais toute recette pas encore renommée
+        # au moment de cette migration retrouve son lien stable. Pas
+        # d'instantané d'ingrédients possible rétroactivement (on ne sait
+        # plus quels ingrédients existaient à l'époque) : ces menus ne
+        # pourront pas afficher le détail "qu'est-ce qui a changé",
+        # seulement l'état actuel une fois le lien recipe_id retrouvé.
+        conn.execute(text("""
+            UPDATE saved_shopping_list_recipes AS sslr
+            SET recipe_id = r.id
+            FROM recipes r
+            WHERE sslr.recipe_id IS NULL AND sslr.recipe_name = r.name
         """))
 
 
@@ -1305,12 +1344,24 @@ def save_shopping_list(
     reference: str,
     recipe_choices: list[tuple[str, int]],
     grouped_items: dict[str, list[str]],
+    recipes: dict | None = None,
 ) -> int:
     """
     Enregistre une liste de courses sur le compte d'un·e utilisateur·rice.
     `recipe_choices` : [(nom_recette, nb_personnes), ...].
     `grouped_items` : {rayon: [ligne formatée, ...], ...} (voir
     ShoppingList.as_grouped_lines côté common.py).
+
+    `recipes` : le dict complet renvoyé par get_all_recipes() (la page
+    appelante l'a déjà en mémoire). Sert à enregistrer, pour chaque
+    recette, un INSTANTANÉ au moment de la sauvegarde — son id réel, sa
+    date de dernière modification, et ses ingrédients mis à l'échelle sous
+    forme structurée. Ça permet plus tard de détecter qu'une recette a été
+    MODIFIÉE depuis (pas juste "supprimée" si son nom a changé), et
+    d'afficher précisément ce qui a changé — voir get_saved_list() et
+    common.diff_recipe_ingredients(). Optionnel pour compatibilité
+    ascendante : si omis, ces instantanés restent vides pour ce menu (pas
+    de détection de modification possible, comportement inchangé sinon).
 
     Lève SavedListLimitReached (sans rien enregistrer) si ce compte a déjà
     MAX_SAVED_LISTS_PER_USER listes enregistrées.
@@ -1337,12 +1388,35 @@ def save_shopping_list(
         ).scalar()
 
         for position, (recipe_name, people) in enumerate(recipe_choices):
+            recipe = (recipes or {}).get(recipe_name)
+            recipe_id = recipe["id"] if recipe else None
+            recipe_updated_at = recipe.get("updated_at") if recipe else None
+            ingredients_snapshot = None
+            if recipe is not None:
+                rows = common.scaled_ingredient_rows(recipe, int(people))
+                # Fraction n'est pas sérialisable en JSON tel quel : on la
+                # garde en texte ("3/2") plutôt qu'en float, pour comparer
+                # plus tard des valeurs EXACTES (pas d'arrondi flottant qui
+                # ferait remonter un faux "changement").
+                ingredients_snapshot = json.dumps(
+                    [[name, str(qty), unit] for name, qty, unit in rows]
+                )
+
             conn.execute(
                 text("""
-                    INSERT INTO saved_shopping_list_recipes (list_id, recipe_name, people, position)
-                    VALUES (:list_id, :recipe_name, :people, :position)
+                    INSERT INTO saved_shopping_list_recipes
+                        (list_id, recipe_name, people, position,
+                         recipe_id, recipe_updated_at, ingredients_snapshot)
+                    VALUES
+                        (:list_id, :recipe_name, :people, :position,
+                         :recipe_id, :recipe_updated_at, :ingredients_snapshot)
                 """),
-                {"list_id": list_id, "recipe_name": recipe_name, "people": int(people), "position": position},
+                {
+                    "list_id": list_id, "recipe_name": recipe_name,
+                    "people": int(people), "position": position,
+                    "recipe_id": recipe_id, "recipe_updated_at": recipe_updated_at,
+                    "ingredients_snapshot": ingredients_snapshot,
+                },
             )
 
         position = 0
@@ -1464,7 +1538,19 @@ def get_saved_list(list_id: int, user_id: int) -> dict | None:
         "owner_user_id": list_row["user_id"],
         "owner_username": list_row["owner_username"],
         "is_owner": list_row["user_id"] == user_id,
-        "recipes": [{"name": r["recipe_name"], "people": r["people"]} for r in recipe_rows],
+        "recipes": [
+            {
+                "name": r["recipe_name"],
+                "people": r["people"],
+                "recipe_id": r["recipe_id"],
+                "recipe_updated_at": r["recipe_updated_at"],
+                "ingredients_snapshot": (
+                    [(name, Fraction(qty), unit) for name, qty, unit in json.loads(r["ingredients_snapshot"])]
+                    if r["ingredients_snapshot"] else None
+                ),
+            }
+            for r in recipe_rows
+        ],
         "items": [
             {"id": r["id"], "category": r["category"], "label": r["label"], "checked": bool(r["checked"])}
             for r in item_rows
