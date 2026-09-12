@@ -262,6 +262,7 @@ def init_db() -> None:
                 id               SERIAL PRIMARY KEY,
                 user_id          INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
                 target_user_id   INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+                label            TEXT,
                 created_at       TEXT NOT NULL,
                 UNIQUE (user_id, target_user_id)
             )
@@ -507,6 +508,12 @@ def _migrate_schema() -> None:
             CREATE UNIQUE INDEX IF NOT EXISTS users_public_id_unique_idx
             ON users (public_id)
         """))
+
+        # Surnom personnel donné à un favori de partage (voir
+        # add_favorite_share_target) — au cas où cette table aurait déjà
+        # été créée par une version antérieure de ce fichier, sans cette
+        # colonne.
+        conn.execute(text("ALTER TABLE favorite_share_targets ADD COLUMN IF NOT EXISTS label TEXT"))
 
 
 def _seed_default_recipes_if_empty() -> None:
@@ -1886,7 +1893,7 @@ def get_favorite_share_targets(user_id: int) -> list[dict]:
     with get_conn() as conn:
         rows = conn.execute(
             text("""
-                SELECT u.id AS user_id, u.username, u.public_id
+                SELECT u.id AS user_id, u.username, u.public_id, f.label
                 FROM favorite_share_targets f
                 JOIN users u ON u.id = f.target_user_id
                 WHERE f.user_id = :user_id
@@ -1894,21 +1901,39 @@ def get_favorite_share_targets(user_id: int) -> list[dict]:
             """),
             {"user_id": user_id},
         ).mappings().all()
-    return [{"user_id": r["user_id"], "username": r["username"], "public_id": r["public_id"]} for r in rows]
+    return [
+        {"user_id": r["user_id"], "username": r["username"], "public_id": r["public_id"], "label": r["label"]}
+        for r in rows
+    ]
 
 
-def add_favorite_share_target(user_id: int, target_public_id: str) -> str:
+def add_favorite_share_target(user_id: int, target_public_id: str, label: str) -> str:
     """
     Ajoute un compte à la liste de favoris de `user_id`, désigné par son
     identifiant unique (public_id — voir add_list_share pour pourquoi pas
-    le pseudo). Renvoie le pseudo du compte ajouté en cas de succès.
+    le pseudo).
+
+    `label` : le surnom personnel donné à ce favori (prénom, surnom
+    habituel...) — c'est LUI qui est affiché partout où ce favori
+    apparaît, pas le pseudo du compte cible : un pseudo peut changer à
+    tout moment (voir auth.update_username), alors que ce surnom reste
+    entièrement sous votre contrôle. Obligatoire : un favori sans aucun
+    repère perdrait tout l'intérêt de la fonctionnalité.
+
+    Renvoie ce label (pas le pseudo) en cas de succès, pour un message de
+    confirmation cohérent avec ce que la personne vient de choisir.
 
     Lève FavoriteShareError (message prêt à afficher) si :
+    - le label est vide ;
     - le compte cible n'existe pas ;
     - le compte cible, c'est soi-même ;
     - il y a déjà MAX_FAVORITE_SHARE_TARGETS favoris (il faut en retirer un avant d'en ajouter un autre) ;
     - ce compte est déjà dans les favoris.
     """
+    label = (label or "").strip()
+    if not label:
+        raise FavoriteShareError("Indique un prénom ou un surnom pour retrouver ce favori facilement.")
+
     with get_conn() as conn:
         target = conn.execute(
             text("SELECT id, username FROM users WHERE UPPER(public_id) = UPPER(:pid)"),
@@ -1939,10 +1964,10 @@ def add_favorite_share_target(user_id: int, target_public_id: str) -> str:
         try:
             conn.execute(
                 text("""
-                    INSERT INTO favorite_share_targets (user_id, target_user_id, created_at)
-                    VALUES (:user_id, :target_user_id, :created_at)
+                    INSERT INTO favorite_share_targets (user_id, target_user_id, label, created_at)
+                    VALUES (:user_id, :target_user_id, :label, :created_at)
                 """),
-                {"user_id": user_id, "target_user_id": target["id"], "created_at": _now_iso()},
+                {"user_id": user_id, "target_user_id": target["id"], "label": label, "created_at": _now_iso()},
             )
         except IntegrityError:
             # Filet de sécurité (ne devrait plus arriver, vu la vérification
@@ -1951,7 +1976,7 @@ def add_favorite_share_target(user_id: int, target_public_id: str) -> str:
             raise FavoriteShareError(f"« {target['username']} » est déjà dans tes favoris.")
 
     _clear_favorite_caches()
-    return target["username"]
+    return label
 
 
 def remove_favorite_share_target(user_id: int, target_user_id: int) -> None:
