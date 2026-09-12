@@ -214,9 +214,20 @@ def render_sidebar_auth() -> None:
             # créé via la connexion base de données est souvent l'email
             # lui-même, donc à ne jamais utiliser en premier ici.
             display_name = current_username() or getattr(st.user, "name", None)
-            st.success(f"Connecté : **{display_name}**")
+            st.success(f"Connecté : **{display_name}**  \nRôle : {role_label}")
 
-            with st.popover("🆔 Mon identifiant & pseudo", use_container_width=True):
+            st.markdown(
+                """
+                <style>
+                .st-key-account_popover div[data-testid="stPopoverBody"] {
+                    max-width: 260px !important;
+                    width: 260px !important;
+                }
+                </style>
+                """,
+                unsafe_allow_html=True,
+            )
+            with st.popover("🆔 Mon identifiant & pseudo", width=260, key="account_popover"):
                 st.caption(
                     "Ton identifiant unique — communique-le à quelqu'un "
                     "pour qu'iel puisse partager un menu avec toi. Il ne "
