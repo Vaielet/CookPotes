@@ -354,11 +354,11 @@ if to_classify:
     st.subheader("🏷️ Nouveaux produits détectés")
     st.caption(
         "Ces ingrédients ne sont pas encore répertoriés dans la base de "
-        "produits (ou n'ont pas encore de rayon). Classe-les dans un des rayons prédéfinis. "
-        "Tu peux les classer "
-        "tout de suite — c'est facultatif, la recette s'enregistre "
-        "normalement même si tu laisses ça à plus tard."
-    )
+        "produits (ils n'ont pas encore de rayon ou de synonymes). Classe-les dans un des rayons prédéfinis "
+        "et ajoute leurs synonymes")  
+    st.badge("Le classement des ingrédients permet de générer une liste de courses "
+             "mieux organisée, gain de temps pour tout le monde !", color="green")
+
     header_cols = st.columns([2, 2, 3])
     header_cols[0].markdown("**Ingrédient**")
     header_cols[1].markdown("**Rayon**")
