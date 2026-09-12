@@ -147,6 +147,13 @@ if not lists_summary:
         "mon menu », choisis tes recettes, génère la liste et le carnet de recette, puis clique sur "
         "« 💾 Enregistrer dans mon compte »."
     )
+
+    if st.button(
+        "Composer mon menu", key="coposer_menu_btn",
+        type="primary", use_container_width=True,
+    ):
+        st.switch_page("pages/2_Composer_mon_menu.py")
+    
     st.stop()
 
 
