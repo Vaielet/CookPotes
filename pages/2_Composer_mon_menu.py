@@ -348,7 +348,7 @@ all_authors = db.get_all_authors()
 
 search_query = st.text_input(
     "🔎 Rechercher une recette (titre ou ingrédient)",
-    placeholder="écris un ingrédient ici",
+    placeholder="Ecris un ingrédient ici",
 ).strip().lower()
 
 filter_cols = st.columns(2)
