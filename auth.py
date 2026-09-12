@@ -72,7 +72,7 @@ import db
 
 # Lien affiché en bas de la sidebar (voir render_sidebar_auth) — REMPLACEZ
 # par l'URL de votre vrai formulaire (Google Forms, Tally, Typeform...).
-FEEDBACK_FORM_URL = "https://forms.gle/REMPLACEZ_PAR_VOTRE_FORMULAIRE"
+FEEDBACK_FORM_URL = "https://framaforms.org/cookpotes-beta-test-1789234672"
 
 
 # ---------------------------------------------------------------------------
@@ -273,7 +273,7 @@ def render_sidebar_auth() -> None:
         # importe la page active.
         st.divider()
         st.link_button(
-            "📝 Donner mon avis sur l'appli", FEEDBACK_FORM_URL,
+            "Donner mon avis sur l'appli", FEEDBACK_FORM_URL,
             use_container_width=True,
         )
 
