@@ -50,15 +50,12 @@ UNIT_CONVERSIONS = {
     "l": ("ml", 1000),
     "litre": ("ml", 1000),
 
-    "cl": ("ml", 10),
-    "centilitre": ("ml", 10),
-
     "kg": ("g", 1000),
 }
 
 # Unités suggérées dans le formulaire d'ajout de recette
 COMMON_UNITS = [
-    "g", "kg", "ml","cl", "l", "cac", "cas", "pièce", "gousse",
+    "g", "kg", "ml", "l", "cac", "cas", "pièce", "gousse",
     "tranche", "feuilles", "brins", "cube", "pincée", "unité","botte",
 ]
 
@@ -803,10 +800,11 @@ def format_quantity(qty: Fraction) -> str:
 def scaled_ingredient_sections(recipe: dict, people: int) -> dict[str, list[str]]:
     """
     Ingrédients d'une recette, mis à l'échelle pour `people` personnes et
-    formatés en lignes lisibles ({section: ["500 g de Courgette", ...]}) —
+    formatés en lignes lisibles ({section: ["Courgette : 500 g", ...]}) —
     même logique de mise à l'échelle que la liste de courses et le PDF,
     factorisée ici pour l'affichage d'une recette dans l'app (page « Mes
-    listes »).
+    menus »). Format "Nom : quantité unité", cohérent avec le reste de
+    l'appli (liste de courses fusionnée).
     """
     base = recipe["portions_base"] or 1
     ratio = Fraction(int(people), base)
@@ -818,9 +816,9 @@ def scaled_ingredient_sections(recipe: dict, people: int) -> dict[str, list[str]
             qty_str = format_quantity(scaled)
             label = ingredient_name.capitalize()
             if unit and unit != "unité":
-                lines.append(f"{qty_str} {unit} de {label}")
+                lines.append(f"{label} : {qty_str} {unit}")
             else:
-                lines.append(f"{qty_str} x {label}")
+                lines.append(f"{label} : {qty_str}")
         sections[section_name] = lines
     return sections
 
