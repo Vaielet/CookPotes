@@ -157,7 +157,7 @@ if not lists_summary:
 def _list_label(l: dict) -> str:
     title = l["reference"] or "Liste sans nom"
     date = common.format_datetime(l["created_at"])
-    label = f"{title} — créé le {date}"
+    label = f"{title} — {date} ({l['checked_items']}/{l['total_items']} cochés)"
     if not l["is_owner"]:
         label += f" · partagé par {l['owner_username']}"
     return label
@@ -443,47 +443,91 @@ with st.expander("🛒 Liste de courses"):
 
 st.subheader("🍽️ Recettes de ce menu")
 
-recipe_cols = st.columns(3)
+# Même comportement que la grille de recettes de « Composer mon menu » :
+# taille de carte strictement fixe sur ordinateur (jamais de rétrécissement
+# à cause du flex-grow par défaut de Streamlit), souple (min/max) sur
+# smartphone/tablette. Voir pages/2_Composer_mon_menu.py pour le détail de
+# chaque choix ci-dessous (sélecteur stColumn plutôt que "column" — le
+# seul qui existe vraiment dans le DOM Streamlit —, !important nécessaire
+# car Streamlit réapplique ses propres largeurs en style inline à chaque
+# redimensionnement, display:flex forcé sur le parent car Streamlit peut
+# aussi passer ce conteneur en CSS Grid selon la largeur d'écran).
+MENUS_GRID_COLUMNS = 4
+MENUS_CARD_WIDTH_PX = 320
+MENUS_CARD_MIN_WIDTH_PX = 300
+MENUS_CARD_MAX_WIDTH_PX = 380
+MENUS_DESKTOP_BREAKPOINT_PX = 768
 
-for i, rs in enumerate(recipe_states):
-    with recipe_cols[i % 3]:
-        with st.container(border=True):
-            if rs["is_deleted"]:
-                st.markdown(f"**{rs['name']}**")
-            else:
-                # all_recipes_full est déjà chargé en entier plus haut (il
-                # nous fallait de toute façon les ingrédients actuels pour
-                # le diff agrégé) : on réutilise directement son image,
-                # pas besoin d'un second aller-retour pour les vignettes.
-                common.render_recipe_image_card(
-                    rs["current_name"], all_recipes_full[rs["current_name"]]["image"]
-                )
-            st.caption(f"{rs['people']} personne(s)")
+st.markdown(
+    f"""
+    <style>
+    .st-key-mes_menus_recipe_grid div[data-testid="stHorizontalBlock"] {{
+        display: flex !important;
+        flex-wrap: wrap !important;
+        row-gap: 1.5rem;
+    }}
+    .st-key-mes_menus_recipe_grid div[data-testid="stColumn"] {{
+        display: block !important;
+        flex: 1 1 {MENUS_CARD_MIN_WIDTH_PX}px !important;
+        width: {MENUS_CARD_MIN_WIDTH_PX}px !important;
+        min-width: {MENUS_CARD_MIN_WIDTH_PX}px !important;
+        max-width: {MENUS_CARD_MAX_WIDTH_PX}px !important;
+    }}
+    @media (min-width: {MENUS_DESKTOP_BREAKPOINT_PX}px) {{
+        .st-key-mes_menus_recipe_grid div[data-testid="stColumn"] {{
+            flex: 0 0 {MENUS_CARD_WIDTH_PX}px !important;
+            width: {MENUS_CARD_WIDTH_PX}px !important;
+            min-width: {MENUS_CARD_WIDTH_PX}px !important;
+            max-width: {MENUS_CARD_WIDTH_PX}px !important;
+        }}
+    }}
+    </style>
+    """,
+    unsafe_allow_html=True,
+)
 
-            if rs["is_deleted"]:
-                st.caption("⚠️ Cette recette a été supprimée depuis.")
-                continue
+with st.container(key="mes_menus_recipe_grid"):
+    recipe_cols = st.columns(MENUS_GRID_COLUMNS)
 
-            if rs["current_name"] != rs["name"]:
-                st.caption(f"ℹ️ Renommée depuis (« {rs['name']} » à l'origine).")
+    for i, rs in enumerate(recipe_states):
+        with recipe_cols[i % MENUS_GRID_COLUMNS]:
+            with st.container(border=True):
+                if rs["is_deleted"]:
+                    st.markdown(f"**{rs['name']}**")
+                else:
+                    # all_recipes_full est déjà chargé en entier plus haut (il
+                    # nous fallait de toute façon les ingrédients actuels pour
+                    # le diff agrégé) : on réutilise directement son image,
+                    # pas besoin d'un second aller-retour pour les vignettes.
+                    common.render_recipe_image_card(
+                        rs["current_name"], all_recipes_full[rs["current_name"]]["image"]
+                    )
+                st.caption(f"{rs['people']} personne(s)")
 
-            if rs["is_modified"]:
-                st.caption("✏️ Cette recette a été modifiée depuis, vérifie ta liste.")
-                diff = rs["diff"]
-                if diff and (diff["added"] or diff["removed"] or diff["changed"]):
-                    with st.expander("Voir ce qui a changé"):
-                        for name, qty, unit in diff["added"]:
-                            st.markdown(f"- 🆕 Ajouté : {common.format_quantity(qty)} {unit} de {name.capitalize()}")
-                        for name, qty, unit in diff["removed"]:
-                            st.markdown(f"- ➖ Retiré : {common.format_quantity(qty)} {unit} de {name.capitalize()}")
-                        for name, old_qty, new_qty, unit in diff["changed"]:
-                            st.markdown(
-                                f"- 🔁 {name.capitalize()} : "
-                                f"{common.format_quantity(old_qty)} → {common.format_quantity(new_qty)} {unit}"
-                            )
+                if rs["is_deleted"]:
+                    st.caption("⚠️ Cette recette a été supprimée depuis.")
+                    continue
 
-            if st.button("👀 Voir la recette", key=f"viewrecipe_{selected_id}_{i}", use_container_width=True):
-                _recipe_dialog(rs["current_name"], rs["people"], all_recipes_full[rs["current_name"]])
+                if rs["current_name"] != rs["name"]:
+                    st.caption(f"ℹ️ Renommée depuis (« {rs['name']} » à l'origine).")
+
+                if rs["is_modified"]:
+                    st.caption("✏️ Cette recette a été modifiée depuis, vérifie ta liste.")
+                    diff = rs["diff"]
+                    if diff and (diff["added"] or diff["removed"] or diff["changed"]):
+                        with st.expander("Voir ce qui a changé"):
+                            for name, qty, unit in diff["added"]:
+                                st.markdown(f"- 🆕 Ajouté : {common.format_quantity(qty)} {unit} de {name.capitalize()}")
+                            for name, qty, unit in diff["removed"]:
+                                st.markdown(f"- ➖ Retiré : {common.format_quantity(qty)} {unit} de {name.capitalize()}")
+                            for name, old_qty, new_qty, unit in diff["changed"]:
+                                st.markdown(
+                                    f"- 🔁 {name.capitalize()} : "
+                                    f"{common.format_quantity(old_qty)} → {common.format_quantity(new_qty)} {unit}"
+                                )
+
+                if st.button("👀 Voir la recette", key=f"viewrecipe_{selected_id}_{i}", use_container_width=True):
+                    _recipe_dialog(rs["current_name"], rs["people"], all_recipes_full[rs["current_name"]])
 
 with st.expander("Téléchargement"):
 
