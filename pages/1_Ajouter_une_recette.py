@@ -287,7 +287,7 @@ for sec in st.session_state.new_recipe_sections:
                     "Unité personnalisée",
                     value=row["unit"] if row["unit"] not in sorted_units else "",
                     key=f"iunit_custom_{row['id']}", label_visibility="collapsed",
-                    placeholder="unité qui n'est pas dans la liste ci-dessus",
+                    placeholder="Nouvelle unité",
                 )
             else:
                 row["unit"] = selection
