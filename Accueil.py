@@ -77,7 +77,7 @@ def home_page() -> None:
 CookPotes, c'est l'application qui vient sauver tes soirées, ton portefeuille et ta santé mentale :</p>
 <ul>
   <li><strong>Zéro prise de tête :</strong> des idées de menus adaptées à toute la famille en quelques clics.</li>
-  <li><strong>Raid éclair au magasin :</strong> une liste de courses automatique avec pile les bonnes quantités (fini le gâchis, bonjour les économies).</li>
+  <li><strong>Virée éclair au magasin :</strong> une liste de courses automatique avec pile les bonnes quantités (fini le gâchis, bonjour les économies).</li>
   <li><strong>Du bon, du vrai fait maison :</strong> même les plus récalcitrant·es à la table finiront par en redemander.</li>
 </ul>
 <p>Bref, ensemble, sortons de la galère, gagnons du temps et mettons fin au gaspillage. </p>
