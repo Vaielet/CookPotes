@@ -367,7 +367,7 @@ if all_authors:
         "👤 Filtrer par auteur·rice (optionnel)",
         options=all_authors,
         help="Affiche uniquement les recettes ajoutées par les auteurs sélectionnés.",
-        placeholder="Choisis un auteur·rice",
+        placeholder="Choisis un·e auteur·rice",
     )
 
 
