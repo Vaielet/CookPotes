@@ -56,7 +56,7 @@ UNIT_CONVERSIONS = {
 # Unités suggérées dans le formulaire d'ajout de recette
 COMMON_UNITS = [
     "g", "kg", "ml", "l", "cac", "cas", "pièce", "gousse",
-    "tranche", "feuilles", "brins", "cube", "pincée", "unité",
+    "tranche", "feuilles", "brins", "cube", "pincée", "unité","botte",
 ]
 
 # Catégories/régimes suggérés dans le formulaire d'ajout de recette. La
