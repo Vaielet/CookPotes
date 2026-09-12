@@ -298,6 +298,34 @@ def render_sidebar_auth() -> None:
         # lien apparaît systématiquement après connexion/déconnexion, peu
         # importe la page active.
         st.divider()
+
+        with st.popover("🔐 Traitement des données", use_container_width=True):
+            st.markdown(
+                """
+**Connexion** : gérée par [Auth0](https://auth0.com), un service
+spécialisé dans l'authentification. Ton mot de passe n'est jamais stocké ni visible
+dans CookPotes : Auth0 s'en occupe entièrement.
+
+**Ce que CookPotes conserve** :
+- Ton **email** — sert uniquement à te reconnaître d'une visite à
+  l'autre. Il n'est jamais affiché sur l'app, ni à toi ni à personne d'autre.
+- Ton **pseudo** — visible par les autres personnes utilisant l'app
+  (partage de menus, "ajouté par" sur les recettes). Modifiable à tout
+  moment.
+- Ton **identifiant unique** — sert uniquement à ce que quelqu'un
+  partage un menu avec toi.
+- Les **recettes et menus** que tu crées ou enregistres.
+
+**Qui peut voir quoi** : les autres utilisateur·rices ne voient que ton
+pseudo, jamais ton email. La personne qui administre l'app peut voir la
+liste des comptes (pseudo, e-mail, identifiant unique) mais n'a pas accès
+à ton mot de passe (géré par Auth0).
+
+**Hébergement** : les données sont stockées sur [Supabase](https://supabase.com)
+(base de données PostgreSQL). 
+                """
+            )
+            
         st.link_button(
             "Donner mon avis sur l'appli", FEEDBACK_FORM_URL,
             use_container_width=True,
