@@ -143,8 +143,8 @@ st.caption(counter_caption)
 
 if not lists_summary:
     st.info(
-        "Aucune liste enregistrée pour l'instant. Va sur « 🛒 Générer ma "
-        "liste », choisis tes recettes, génère la liste, puis clique sur "
+        "Aucun menu enregistré pour l'instant. Va sur la page « Composer "
+        "mon menu », choisis tes recettes, génère la liste et le carnet de recette, puis clique sur "
         "« 💾 Enregistrer dans mon compte »."
     )
     st.stop()
