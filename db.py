@@ -258,6 +258,15 @@ def init_db() -> None:
             )
         """))
         conn.execute(text("""
+            CREATE TABLE IF NOT EXISTS favorite_share_targets (
+                id               SERIAL PRIMARY KEY,
+                user_id          INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+                target_user_id   INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+                created_at       TEXT NOT NULL,
+                UNIQUE (user_id, target_user_id)
+            )
+        """))
+        conn.execute(text("""
             CREATE TABLE IF NOT EXISTS remember_tokens (
                 id          SERIAL PRIMARY KEY,
                 user_id     INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
@@ -1851,6 +1860,107 @@ def remove_list_share(list_id: int, requesting_user_id: int, target_user_id: int
     if deleted:
         _clear_saved_list_caches()
     return deleted
+
+
+# ---------------------------------------------------------------------------
+# Favoris de partage — jusqu'à 3 comptes retrouvés facilement pour partager
+# un menu, sans avoir à ressaisir leur identifiant à chaque fois. Tout menu
+# reste par ailleurs partageable avec n'importe quel identifiant valide
+# (voir add_list_share) : les favoris ne sont qu'un raccourci.
+# ---------------------------------------------------------------------------
+
+MAX_FAVORITE_SHARE_TARGETS = 3
+
+
+class FavoriteShareError(Exception):
+    """Levée par add_favorite_share_target quand l'ajout n'a pas pu être fait — message prêt à afficher."""
+
+
+def _clear_favorite_caches() -> None:
+    get_favorite_share_targets.clear()
+
+
+@st.cache_data(show_spinner=False, ttl=_READ_CACHE_TTL)
+def get_favorite_share_targets(user_id: int) -> list[dict]:
+    """Jusqu'à MAX_FAVORITE_SHARE_TARGETS favoris, dans l'ordre où ils ont été ajoutés."""
+    with get_conn() as conn:
+        rows = conn.execute(
+            text("""
+                SELECT u.id AS user_id, u.username, u.public_id
+                FROM favorite_share_targets f
+                JOIN users u ON u.id = f.target_user_id
+                WHERE f.user_id = :user_id
+                ORDER BY f.created_at
+            """),
+            {"user_id": user_id},
+        ).mappings().all()
+    return [{"user_id": r["user_id"], "username": r["username"], "public_id": r["public_id"]} for r in rows]
+
+
+def add_favorite_share_target(user_id: int, target_public_id: str) -> str:
+    """
+    Ajoute un compte à la liste de favoris de `user_id`, désigné par son
+    identifiant unique (public_id — voir add_list_share pour pourquoi pas
+    le pseudo). Renvoie le pseudo du compte ajouté en cas de succès.
+
+    Lève FavoriteShareError (message prêt à afficher) si :
+    - le compte cible n'existe pas ;
+    - le compte cible, c'est soi-même ;
+    - il y a déjà MAX_FAVORITE_SHARE_TARGETS favoris (il faut en retirer un avant d'en ajouter un autre) ;
+    - ce compte est déjà dans les favoris.
+    """
+    with get_conn() as conn:
+        target = conn.execute(
+            text("SELECT id, username FROM users WHERE UPPER(public_id) = UPPER(:pid)"),
+            {"pid": (target_public_id or "").strip()},
+        ).mappings().first()
+        if target is None:
+            raise FavoriteShareError(f"Aucun compte trouvé avec l'identifiant « {target_public_id} ».")
+        if target["id"] == user_id:
+            raise FavoriteShareError("Impossible de s'ajouter soi-même en favori.")
+
+        already_favorite = conn.execute(
+            text("SELECT 1 FROM favorite_share_targets WHERE user_id = :user_id AND target_user_id = :target_id"),
+            {"user_id": user_id, "target_id": target["id"]},
+        ).first() is not None
+        if already_favorite:
+            raise FavoriteShareError(f"« {target['username']} » est déjà dans tes favoris.")
+
+        count = conn.execute(
+            text("SELECT COUNT(*) FROM favorite_share_targets WHERE user_id = :user_id"),
+            {"user_id": user_id},
+        ).scalar()
+        if count >= MAX_FAVORITE_SHARE_TARGETS:
+            raise FavoriteShareError(
+                f"Tu as déjà {MAX_FAVORITE_SHARE_TARGETS} favoris (le maximum). "
+                "Retires-en un avant d'en ajouter un autre."
+            )
+
+        try:
+            conn.execute(
+                text("""
+                    INSERT INTO favorite_share_targets (user_id, target_user_id, created_at)
+                    VALUES (:user_id, :target_user_id, :created_at)
+                """),
+                {"user_id": user_id, "target_user_id": target["id"], "created_at": _now_iso()},
+            )
+        except IntegrityError:
+            # Filet de sécurité (ne devrait plus arriver, vu la vérification
+            # explicite juste au-dessus) : une insertion concurrente entre
+            # les deux requêtes, par exemple.
+            raise FavoriteShareError(f"« {target['username']} » est déjà dans tes favoris.")
+
+    _clear_favorite_caches()
+    return target["username"]
+
+
+def remove_favorite_share_target(user_id: int, target_user_id: int) -> None:
+    with get_conn() as conn:
+        conn.execute(
+            text("DELETE FROM favorite_share_targets WHERE user_id = :user_id AND target_user_id = :target_user_id"),
+            {"user_id": user_id, "target_user_id": target_user_id},
+        )
+    _clear_favorite_caches()
 
 
 # ---------------------------------------------------------------------------
