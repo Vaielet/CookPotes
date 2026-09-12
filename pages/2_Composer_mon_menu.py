@@ -348,7 +348,7 @@ all_authors = db.get_all_authors()
 
 search_query = st.text_input(
     "🔎 Rechercher une recette (titre ou ingrédient)",
-    placeholder="ex. : poulet, courgette, curry...",
+    placeholder="écris un ingrédient ici",
 ).strip().lower()
 
 filter_cols = st.columns(2)
@@ -358,6 +358,7 @@ if all_tags:
         "🏷️ Filtrer par catégorie (optionnel)",
         options=all_tags,
         help="Affiche uniquement les recettes ayant TOUTES les catégories sélectionnées.",
+        placeholder="Choisis une catégorie"
     )
 
 author_filter = []
@@ -366,6 +367,7 @@ if all_authors:
         "👤 Filtrer par auteur·rice (optionnel)",
         options=all_authors,
         help="Affiche uniquement les recettes ajoutées par les auteurs sélectionnés.",
+        placeholder="Choisis un auteur·rice"
     )
 
 
