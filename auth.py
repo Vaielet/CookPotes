@@ -216,7 +216,7 @@ def render_sidebar_auth() -> None:
             display_name = current_username() or getattr(st.user, "name", None)
             st.success(f"Connecté : **{display_name}**")
 
-            with st.popover("🆔 Mon identifiant & pseudo", use_container_width=True):
+            with st.popover("Mon identifiant & pseudo", use_container_width=True):
                 st.caption(
                     "Ton identifiant unique — communique-le à quelqu'un "
                     "pour qu'iel puisse partager un menu avec toi. Il ne "
@@ -299,7 +299,7 @@ def render_sidebar_auth() -> None:
         # importe la page active.
         st.divider()
 
-        with st.popover("🔐 Traitement des données", use_container_width=True):
+        with st.popover("Traitement des données", use_container_width=True):
             st.markdown(
                 """
 **Connexion** : gérée par [Auth0](https://auth0.com), un service
