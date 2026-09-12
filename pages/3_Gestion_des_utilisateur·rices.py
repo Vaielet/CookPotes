@@ -77,21 +77,22 @@ users = db.list_users()
 
 for user in users:
     with st.container(border=True):
-        cols = st.columns([1.4, 1, 1, 1.2, 0.9, 1, 1, 1])
-        cols[0].markdown(f"**{user['username']}**")
-        if not user["is_approved"]:
-            cols[0].caption("⏳ En attente de validation")
+        st.markdown(f"**{user['username']}**" + ("  ⏳ *En attente de validation*" if not user["is_approved"] else ""))
 
-        is_editor = cols[1].checkbox(
+        # 1re ligne : les cases à cocher (rôles + validation) — un texte
+        # entier par case, plus de colonnes trop étroites qui tronquaient
+        # les libellés comme "Gestion produits" ou "En attente de validation".
+        role_cols = st.columns(4)
+        is_editor = role_cols[0].checkbox(
             "Éditeur·rice", value=user["is_editor"], key=f"editor_{user['id']}"
         )
-        is_admin = cols[2].checkbox(
+        is_admin = role_cols[1].checkbox(
             "Admin", value=user["is_admin"], key=f"admin_{user['id']}"
         )
-        can_manage_products = cols[3].checkbox(
+        can_manage_products = role_cols[2].checkbox(
             "Gestion produits", value=user["can_manage_products"], key=f"products_{user['id']}"
         )
-        is_approved = cols[4].checkbox(
+        is_approved = role_cols[3].checkbox(
             "✅ Validé", value=user["is_approved"], key=f"approved_{user['id']}",
             help="Un compte non validé est bloqué sur toute l'app, sauf "
                  "« Accueil » et « Comment ça marche ? ».",
@@ -103,7 +104,14 @@ for user in users:
             or (can_manage_products != user["can_manage_products"])
             or (is_approved != user["is_approved"])
         )
-        if cols[5].button("💾 Appliquer", key=f"apply_{user['id']}", disabled=not role_changed):
+
+        # 2e ligne : les actions — même logique, chacune dans sa propre
+        # colonne plus large plutôt que serrées à côté des cases à cocher.
+        action_cols = st.columns(3)
+        if action_cols[0].button(
+            "💾 Appliquer", key=f"apply_{user['id']}", disabled=not role_changed,
+            use_container_width=True,
+        ):
             if user["is_admin"] and not is_admin and db.count_admins() <= 1:
                 st.error("Impossible de retirer le dernier compte administrateur.")
             else:
@@ -115,7 +123,7 @@ for user in users:
                 st.session_state["_flash_user_msg"] = f"Rôle de « {user['username']} » mis à jour."
                 st.rerun()
 
-        with cols[6].popover("🔑 Mot de passe"):
+        with action_cols[1].popover("🔑 Mot de passe", use_container_width=True):
             new_pw = st.text_input(
                 "Nouveau mot de passe", type="password", key=f"newpw_{user['id']}"
             )
@@ -128,8 +136,9 @@ for user in users:
                     st.rerun()
 
         delete_disabled = user["is_admin"] and db.count_admins() <= 1
-        if cols[7].button(
-            "🗑️ Supprimer", key=f"deluser_{user['id']}", disabled=delete_disabled
+        if action_cols[2].button(
+            "🗑️ Supprimer", key=f"deluser_{user['id']}", disabled=delete_disabled,
+            use_container_width=True,
         ):
             db.delete_user(user["id"])
             if auth.current_username() == user["username"]:
@@ -137,4 +146,4 @@ for user in users:
             st.session_state["_flash_user_msg"] = f"Compte « {user['username']} » supprimé."
             st.rerun()
         if delete_disabled:
-            cols[7].caption("Dernier admin")
+            action_cols[2].caption("Dernier admin")

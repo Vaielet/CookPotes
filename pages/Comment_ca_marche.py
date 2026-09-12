@@ -14,12 +14,13 @@ auth.render_sidebar_auth()
 
 common.icon_title("Comment ça marche ?", "comment_ca_marche.png", "📋")
 
-st.info(
-    "🔒 **CookPotes est actuellement réservée aux comptes validés.** "
-    "Connecte-toi (ou crée un compte) via le menu à gauche — ça prend "
-    "10 secondes — puis contacte-moi pour que je valide ton accès. Une "
-    "fois validé·e, tu retrouves tout ce qui est décrit ci-dessous."
-)
+if not auth.is_approved():
+    st.info(
+        "🔒 **CookPotes est actuellement réservée aux comptes validés.** "
+        "Connecte-toi (ou crée un compte) via le menu à gauche — ça prend "
+        "10 secondes — puis contacte-moi pour que je valide ton accès. Une "
+        "fois validé·e, tu retrouves tout ce qui est décrit ci-dessous."
+    )
 
 col1, col2, col3 = st.columns(3,gap="medium",border=True)
 with col1:
