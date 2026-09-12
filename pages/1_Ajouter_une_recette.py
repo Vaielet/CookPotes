@@ -240,6 +240,8 @@ st.caption(
     "personnes de base ci-dessus."
 )
 
+sorted_units = sorted(common.COMMON_UNITS)  # avant la boucle
+
 for sec in st.session_state.new_recipe_sections:
     with st.container(border=True):
         top_cols = st.columns([4, 1])
@@ -271,8 +273,8 @@ for sec in st.session_state.new_recipe_sections:
             )
             row["unit"] = r3.selectbox(
                 "Unité",
-                options=common.COMMON_UNITS,
-                index=common.COMMON_UNITS.index(row["unit"]) if row["unit"] in common.COMMON_UNITS else 0,
+                options=sorted_units,
+                index=sorted_units.index(row["unit"]) if row["unit"] in sorted_units else 0,
                 key=f"iunit_{row['id']}", label_visibility="collapsed",
             )
             if r4.button("🗑️", key=f"delrow_{row['id']}"):
