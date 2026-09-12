@@ -143,14 +143,10 @@ st.caption(counter_caption)
 
 if not lists_summary:
     st.info(
-        "Aucun menu enregistré pour l'instant. Va sur la page « Composer "
-        "mon menu », choisis tes recettes, génère la liste et le carnet de recette, puis clique sur "
+        "Aucune liste enregistrée pour l'instant. Va sur « 🛒 Générer ma "
+        "liste », choisis tes recettes, génère la liste, puis clique sur "
         "« 💾 Enregistrer dans mon compte »."
     )
-
-    if common.icon_button("Composer mon menu", "generer_mon_menu.png", "📋", key="home-btn-generer"):
-        st.switch_page("pages/2_Composer_mon_menu.py")
-    
     st.stop()
 
 
@@ -161,7 +157,7 @@ if not lists_summary:
 def _list_label(l: dict) -> str:
     title = l["reference"] or "Liste sans nom"
     date = common.format_datetime(l["created_at"])
-    label = f"{title} — créé le {date}"
+    label = f"{title} — {date} ({l['checked_items']}/{l['total_items']} cochés)"
     if not l["is_owner"]:
         label += f" · partagé par {l['owner_username']}"
     return label
@@ -252,14 +248,19 @@ else:
             st.caption("Ce menu n'est partagé avec personne pour l'instant.")
 
         with st.form(f"share_form_{selected_id}", clear_on_submit=True):
-            share_username = st.text_input("Identifiant du compte avec qui partager")
+            share_public_id = st.text_input(
+                "Identifiant unique de la personne",
+                help="Visible dans son propre menu « 🆔 Mon identifiant & "
+                     "pseudo » (sidebar) — pas son pseudo, qui peut changer.",
+                placeholder="ex : 3AUJVM8B",
+            )
             share_submitted = st.form_submit_button("Partager")
         if share_submitted:
-            if not share_username.strip():
+            if not share_public_id.strip():
                 st.error("Indique un identifiant.")
             else:
                 try:
-                    shared_with = db.add_list_share(selected_id, user_id, share_username)
+                    shared_with = db.add_list_share(selected_id, user_id, share_public_id)
                 except db.ListShareError as exc:
                     st.error(str(exc))
                 else:
