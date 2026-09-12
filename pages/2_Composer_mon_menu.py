@@ -120,6 +120,27 @@ def _generate_shopping_list() -> None:
     st.session_state["choices"] = selected_choices
     st.session_state["reference"] = _current_reference().strip() or "Mon menu"
     st.session_state["page_view"] = "results"
+    # Nouvelle génération : on repart sans message d'enregistrement résiduel
+    # d'un précédent menu (voir la vue "results" plus bas).
+    st.session_state.pop("_save_menu_status", None)
+
+
+def _existing_references() -> set[str]:
+    """Références déjà utilisées par les menus enregistrés de la personne connectée (insensible à la casse)."""
+    if not auth.is_logged_in():
+        return set()
+    return {
+        (saved["reference"] or "").strip().lower()
+        for saved in db.get_saved_lists(auth.current_user_id())
+    }
+
+
+def _reference_validation() -> tuple[bool, bool]:
+    """Renvoie (référence_manquante, référence_déjà_utilisée) pour la référence actuellement saisie."""
+    current = _current_reference().strip()
+    missing = not current
+    duplicate = (not missing) and current.lower() in _existing_references()
+    return missing, duplicate
 
 
 # ---------------------------------------------------------------------------
@@ -202,18 +223,31 @@ if view == "results":
                     grouped_items=grouped,
                 )
             except db.SavedListLimitReached as exc:
-                st.error(str(exc))
-                #st.page_link("pages/5_Mes_menus.py", label="📋 Aller à Mes menus", icon="📋")
-                if common.icon_button("Mes menus", "mes_menus.png", "📋", key="home-btn-menu"):
-                  st.switch_page("pages/5_Mes_menus.py")
+                st.session_state["_save_menu_status"] = ("limit", str(exc))
+            else:
+                st.session_state["_save_menu_status"] = ("success", None)
+
+        # Affiché à partir de session_state (pas nichée dans le `if` du
+        # bouton ci-dessus) : sinon, dès le rerun suivant — précisément
+        # celui déclenché par un clic sur "Mes menus" — st.button()
+        # redevient False, ce bloc entier disparaît du run, et le clic sur
+        # "Mes menus" n'est jamais traité (Streamlit ne peut réagir qu'à un
+        # widget réellement instancié pendant CE run). En le sortant dans
+        # session_state, il reste affiché (et donc cliquable) sur tous les
+        # runs suivants, jusqu'à la prochaine génération de menu (voir
+        # _generate_shopping_list, qui le réinitialise).
+        save_status = st.session_state.get("_save_menu_status")
+        if save_status:
+            kind, message = save_status
+            if kind == "limit":
+                st.error(message)
             else:
                 st.success(
                     "Menu enregistré ! Retrouve-le, coche les articles au fur "
                     "et à mesure de tes courses, et affiche tes recettes sur la page : "
                 )
-                #st.page_link("pages/5_Mes_menus.py", label="📋 Aller à Mes menus", icon="📋")
-                if common.icon_button("Mes menus", "mes_menus.png", "📋", key="home-btn-menu"):
-                  st.switch_page("pages/5_Mes_menus.py")
+            if common.icon_button("Mes menus", "mes_menus.png", "📋", key="home-btn-menu"):
+                st.switch_page("pages/5_Mes_menus.py")
     else:
         st.caption(
             "🔒 Connecte-toi (menu de gauche) pour enregistrer ce menu "
@@ -260,18 +294,26 @@ with cart_col:
 
             st.divider()
             st.text_input(
-                "📝 Référence (optionnel)",
+                "📝 Référence",
                 placeholder="ex. : Repas de la semaine du 10 mai",
                 value=_current_reference(),
                 key=REFERENCE_CART_KEY,
                 on_change=_sync_reference,
                 args=(REFERENCE_CART_KEY, REFERENCE_MAIN_KEY),
             )
+            cart_ref_missing, cart_ref_duplicate = _reference_validation()
+            if cart_ref_missing:
+                st.caption("⚠️ Indique une référence pour pouvoir générer le menu.")
+            elif cart_ref_duplicate:
+                st.caption(
+                    f"⚠️ Tu as déjà un menu enregistré avec cette référence. Choisis-en une autre."
+                )
             if st.button(
                 "🧾 Générer la liste de courses et le carnet de recette",
                 key="cart_generate",
                 type="primary",
                 use_container_width=True,
+                disabled=cart_ref_missing or cart_ref_duplicate,
             ):
                 _generate_shopping_list()
                 st.rerun()
@@ -585,14 +627,16 @@ reference = st.text_input(
     args=(REFERENCE_MAIN_KEY, REFERENCE_CART_KEY),
 )
 
-reference_missing = not reference.strip()
+reference_missing, reference_duplicate = _reference_validation()
 if reference_missing:
     st.caption("⚠️ Indique une référence pour pouvoir générer le menu.")
+elif reference_duplicate:
+    st.caption("⚠️ Tu as déjà un menu enregistré avec cette référence. Choisis-en une autre.")
 
 if st.button(
     "🧾 Générer la liste de courses et le carnet de recettes",
     type="primary",
-    disabled=len(selected_choices) == 0 or reference_missing,
+    disabled=len(selected_choices) == 0 or reference_missing or reference_duplicate,
 ):
     _generate_shopping_list()
     st.rerun()
