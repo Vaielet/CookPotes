@@ -740,27 +740,55 @@ class ShoppingList:
         self.categories[key[0]] = category
 
     def as_grouped_lines(self) -> dict:
-        """Retourne un dict {catégorie: [lignes formatées]}."""
+        """
+        Retourne un dict {catégorie: [lignes formatées]}.
+
+        Regroupe d'abord par INGRÉDIENT SEUL (sans l'unité) : deux recettes
+        utilisant par exemple "gousse" et "tête" d'ail ne doivent jamais
+        donner deux lignes séparées — il n'existe pas de règle de
+        conversion fiable entre certaines unités (gousse/tête, g/pièce,
+        ml/pincée...), donc on n'en invente aucune. On additionne ce qui
+        est additionnable (même unité), et on affiche chaque total sur une
+        seule ligne par ingrédient plutôt que de le dupliquer.
+        """
+        by_name: dict[str, list[tuple[str, Fraction]]] = defaultdict(list)
+        for (name, unit), qty in self.items.items():
+            by_name[name].append((unit, qty))
+
         grouped = defaultdict(list)
+        for name in sorted(by_name):
+            formatted_parts: list[tuple[str, str | None]] = []
+            for unit, qty in sorted(by_name[name]):
+                display_qty = qty
+                display_unit = unit
 
-        for (name, unit), qty in sorted(self.items.items()):
-            display_qty = qty
-            display_unit = unit
+                if unit == "g" and qty >= 1000:
+                    display_qty = qty / 1000
+                    display_unit = "kg"
+                elif unit == "ml" and qty >= 1000:
+                    display_qty = qty / 1000
+                    display_unit = "l"
 
-            if unit == "g" and qty >= 1000:
-                display_qty = qty / 1000
-                display_unit = "kg"
-            elif unit == "ml" and qty >= 1000:
-                display_qty = qty / 1000
-                display_unit = "l"
+                qty_str = format_quantity(display_qty)
+                is_countable = not display_unit or display_unit == "unité"
+                formatted_parts.append((qty_str, None if is_countable else display_unit))
 
-            qty_str = format_quantity(display_qty)
             label = name.capitalize()
 
-            if display_unit and display_unit != "unité":
-                text = f"{qty_str} {display_unit} de {label}"
+            if len(formatted_parts) == 1:
+                # Cas de très loin le plus fréquent (une seule unité pour
+                # cet ingrédient) : format inchangé, identique à avant.
+                qty_str, unit_label = formatted_parts[0]
+                if unit_label:
+                    text = f"{qty_str} {unit_label} de {label}"
+                else:
+                    text = f"{qty_str} x {label}"
             else:
-                text = f"{qty_str} x {label}"
+                pieces = [
+                    f"{qty_str} {unit_label}" if unit_label else qty_str
+                    for qty_str, unit_label in formatted_parts
+                ]
+                text = " + ".join(pieces) + f" de {label}"
 
             category = self.categories.get(name, DEFAULT_CATEGORY)
             grouped[category].append(text)
