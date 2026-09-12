@@ -406,6 +406,22 @@ for rs in recipe_states:
 
 merged_diff = common.diff_recipe_ingredients(old_rows_all, new_rows_all) if has_any_snapshot else None
 
+# Lignes ACTUELLES (quantités à jour), reconstruites à partir de
+# new_rows_all avec le même format que la liste d'origine (voir
+# common.ShoppingList.as_grouped_lines). Sert à CORRIGER l'affichage des
+# cases à cocher ci-dessous : avant ce correctif, un avertissement de
+# changement de quantité s'affichait bien, mais la case continuait à
+# montrer l'ancienne quantité, figée au moment de l'enregistrement du
+# menu — rien ne la recalculait jamais.
+current_shopping_list = common.ShoppingList()
+for _name, _qty, _unit in new_rows_all:
+    current_shopping_list.add(_name, _qty, _unit)
+
+current_line_by_name: dict[str, str] = {}
+for _category, _lines in current_shopping_list.as_grouped_lines().items():
+    for _line in _lines:
+        current_line_by_name[_line.split(" : ", 1)[0].strip().lower()] = _line
+
 # {nom_canonique: {"kind": ..., "text": ...}} — un seul message par nom
 # (si un même ingrédient a plusieurs unités avec des changements de nature
 # différente, un seul s'affiche ; cas rare, simplification acceptée).
@@ -481,8 +497,17 @@ with st.expander("🛒 Liste de courses"):
         st.markdown(f"**{category}**")
         for item in by_category[category]:
             item_key = f"item_{item['id']}"
+            item_name = item["label"].split(" : ", 1)[0].strip().lower()
+
+            # Affiche la quantité ACTUELLE si elle diffère de celle
+            # enregistrée à l'origine — la coche reste associée au même
+            # item["id"] dans les deux cas, donc rien n'est perdu côté
+            # suivi des courses déjà faites.
+            current_line = current_line_by_name.get(item_name)
+            display_label = current_line if (current_line and current_line != item["label"]) else item["label"]
+
             st.checkbox(
-                item["label"], value=item["checked"], key=item_key,
+                display_label, value=item["checked"], key=item_key,
                 on_change=_toggle_item, args=(item["id"], user_id, item_key),
             )
             # Met en évidence les articles dont la quantité a changé (ou
@@ -490,7 +515,6 @@ with st.expander("🛒 Liste de courses"):
             # si les courses ont déjà été faites. "added" n'a pas de case à
             # cocher existante ici (jamais enregistré à l'origine), affiché
             # séparément juste en dessous.
-            item_name = item["label"].split(" : ", 1)[0].strip().lower()
             warning = merged_warnings.get(item_name)
             if warning and warning["kind"] != "added":
                 st.caption(warning["text"])
