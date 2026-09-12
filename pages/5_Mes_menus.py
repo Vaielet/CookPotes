@@ -132,6 +132,43 @@ if st.session_state.get("_flash_list_msg"):
     st.success(st.session_state["_flash_list_msg"])
     st.session_state["_flash_list_msg"] = None
 
+with st.expander("⭐ Mes favoris de partage"):
+    st.caption(
+        "Retrouve facilement jusqu'à 3 personnes avec qui tu partages "
+        "souvent un menu — n'importe quel menu reste par ailleurs "
+        "partageable avec n'importe quel identifiant."
+    )
+    favorites = db.get_favorite_share_targets(user_id)
+    if favorites:
+        for fav in favorites:
+            fav_cols = st.columns([4, 1])
+            fav_cols[0].markdown(f"- **{fav['username']}**")
+            if fav_cols[1].button("Retirer", key=f"unfav_{fav['user_id']}", use_container_width=True):
+                db.remove_favorite_share_target(user_id, fav["user_id"])
+                st.rerun()
+    else:
+        st.caption("Aucun favori pour l'instant.")
+
+    if len(favorites) < db.MAX_FAVORITE_SHARE_TARGETS:
+        with st.form("_add_favorite_form", clear_on_submit=True):
+            new_favorite_id = st.text_input(
+                "Identifiant unique de la personne à ajouter",
+                help="Visible dans son propre menu « 🆔 Mon identifiant & pseudo » (sidebar).",
+                placeholder="ex : 3AUJVM8B",
+            )
+            add_favorite_submitted = st.form_submit_button("⭐ Ajouter aux favoris")
+        if add_favorite_submitted:
+            if not new_favorite_id.strip():
+                st.error("Indique un identifiant.")
+            else:
+                try:
+                    added_username = db.add_favorite_share_target(user_id, new_favorite_id)
+                except db.FavoriteShareError as exc:
+                    st.error(str(exc))
+                else:
+                    st.success(f"« {added_username} » ajouté·e à tes favoris.")
+                    st.rerun()
+
 lists_summary = db.get_saved_lists(user_id)
 
 owned_count = sum(1 for l in lists_summary if l["is_owner"])
@@ -246,6 +283,23 @@ else:
                     st.rerun()
         else:
             st.caption("Ce menu n'est partagé avec personne pour l'instant.")
+
+        favorites_for_quick_share = [
+            fav for fav in db.get_favorite_share_targets(user_id)
+            if fav["user_id"] not in {s["user_id"] for s in shares}
+        ]
+        if favorites_for_quick_share:
+            st.caption("Partage rapide avec un favori :")
+            quick_cols = st.columns(len(favorites_for_quick_share))
+            for col, fav in zip(quick_cols, favorites_for_quick_share):
+                if col.button(f"⭐ {fav['username']}", key=f"quickshare_{selected_id}_{fav['user_id']}", use_container_width=True):
+                    try:
+                        shared_with = db.add_list_share(selected_id, user_id, fav["public_id"])
+                    except db.ListShareError as exc:
+                        st.error(str(exc))
+                    else:
+                        st.success(f"Menu partagé avec « {shared_with} ».")
+                        st.rerun()
 
         with st.form(f"share_form_{selected_id}", clear_on_submit=True):
             share_public_id = st.text_input(
