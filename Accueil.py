@@ -101,7 +101,7 @@ CookPotes, c'est l'application qui vient sauver tes soirées, ton portefeuille e
     )
 
     if auth.is_approved():
-        recent = db.get_recent_recipes(limit=5)
+        recent = db.get_recent_recipes(limit=3)
         if recent:
             st.caption("Dernières recettes ajoutées")
     
