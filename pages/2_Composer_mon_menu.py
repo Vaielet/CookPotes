@@ -358,6 +358,7 @@ if all_tags:
         "🏷️ Filtrer par catégorie (optionnel)",
         options=all_tags,
         help="Affiche uniquement les recettes ayant TOUTES les catégories sélectionnées.",
+        placeholder="Choisis des catégories",
     )
 
 author_filter = []
