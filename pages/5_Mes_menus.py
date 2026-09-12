@@ -312,7 +312,7 @@ else:
         with st.form(f"share_form_{selected_id}", clear_on_submit=True):
             share_public_id = st.text_input(
                 "Identifiant unique de la personne",
-                help="Visible dans son propre menu « 🆔 Mon identifiant & "
+                help="Visible dans son propre menu «Mon identifiant & "
                      "pseudo » (sidebar) — pas son pseudo, qui peut changer.",
                 placeholder="ex : 3AUJVM8B",
             )
