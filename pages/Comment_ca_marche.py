@@ -40,9 +40,7 @@ with col2:
     ": ajoute tes recettes coup de cœur ou les pépites de ton grand-père, "
     "à condition de les avoir testées et approuvées. Encode précisément "
     "chaque ingrédient et étape : ta recette te servira à composer tes menus "
-    "et régalera automatiquement tou·tes les CookPotes."
-    "<p>**Réservé aux utilisateur·rices avec un compte** —"
-    "Crée un compte ou connecte-toi via le menu à gauche.</p>",unsafe_allow_html=True)
+    "et régalera automatiquement tou·tes les CookPotes.",unsafe_allow_html=True)
 
 with col3:
     if common.icon_button("Mes menus", "mes_menus.png", "📋", key="home-btn-menu"):
@@ -50,9 +48,7 @@ with col3:
     st.markdown("Consulte tes menus enregistrés, coche les produits de ta liste pendant "
     "tes courses et affiche tes recettes étape par étape. "
     "Et parce que la gestion des repas, c'est un sport d'équipe : partage tes menus (et ta charge mentale) "
-    "avec ton/ta co-équipier·e ! "
-    "<p>**Réservé aux utilisateur·rices avec un compte** —"
-    "Crée un compte ou connecte-toi via le menu à gauche.</p>",unsafe_allow_html=True,)
+    "avec ton/ta co-équipier·e ! ",unsafe_allow_html=True,)
 
 st.markdown("Utilise les trois boutons ci-dessus ou le menu à gauche pour naviguer entre les pages (appuye sur les >> en haut à gauche si tu utilises un smartphone ou une tablette.")
 
