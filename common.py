@@ -977,7 +977,7 @@ def render_recipe_image_card(name: str, image_bytes: bytes | None, size: tuple[i
           <div style="position:absolute; bottom:0; left:0; right:0;
                       background:{RECIPE_CARD_LABEL_COLOR};
                       color:white; padding:0.3em 0.7em; font-weight:600;
-                      font-size:1.05em; line-height:1.2; height:3em">
+                      font-size:1em; line-height:1.2; height:3em">
             {name}
           </div>
         </div>
