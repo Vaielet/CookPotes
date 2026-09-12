@@ -330,7 +330,7 @@ Il ne s'agit pas d'une politique de confidentialité formelle.
             )
             
         st.link_button(
-            "Donner mon avis sur l'appli", FEEDBACK_FORM_URL,
+            "Donner mon avis sur l'app", FEEDBACK_FORM_URL,
             use_container_width=True,
         )
 
