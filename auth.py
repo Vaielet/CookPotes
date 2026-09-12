@@ -214,7 +214,7 @@ def render_sidebar_auth() -> None:
             # créé via la connexion base de données est souvent l'email
             # lui-même, donc à ne jamais utiliser en premier ici.
             display_name = current_username() or getattr(st.user, "name", None)
-            st.success(f"Connecté : **{display_name}**  \nRôle : {role_label}")
+            st.success(f"Connecté : **{display_name}**")
 
             with st.popover("🆔 Mon identifiant & pseudo", use_container_width=True):
                 st.caption(
