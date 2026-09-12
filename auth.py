@@ -342,7 +342,7 @@ APPROVAL_PENDING_MESSAGE = (
 
 
 def require_editor(
-    message: str = "🔒 Connecte-toi (menu de gauche) pour accéder à cette page — c'est gratuit et ça prend 10 secondes.",
+    message: str = "🔒 Connecte-toi avec un compte validé pour accéder à cette page.",
 ) -> None:
     """
     À appeler tout en haut d'une page réservée aux éditeurs de recettes.
@@ -386,7 +386,7 @@ def require_product_curator(
 
 
 def require_login(
-    message: str = "🔒 Connecte-toi (menu de gauche) pour accéder à cette page — c'est gratuit et ça prend 10 secondes.",
+    message: str = "🔒 Connecte-toi avec un compte validé pour accéder à cette page.",
 ) -> None:
     """
     À appeler tout en haut d'une page réservée aux personnes connectées ET
