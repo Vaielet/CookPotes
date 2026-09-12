@@ -260,8 +260,7 @@ def render_sidebar_auth() -> None:
                     logout()
         else:
             st.caption(
-                "Connecte-toi pour ajouter des recettes et sauvegarder les "
-                "menus que tu as composés."
+                "🔒 Page réservée aux utilisateur·rices connecté·es avec un compte validé."
             )
             if st.button(
                 "Se connecter / créer un compte", key="_auth_login_btn",
@@ -334,7 +333,7 @@ def require_product_curator(
 
 
 def require_login(
-    message: str = "🔒 Connecte-toi (menu de gauche) pour accéder à cette page — c'est gratuit et ça prend 10 secondes.",
+    message: str = "🔒 Page réservée aux utilisateur·rices connecté·es avec un compte validé.",
 ) -> None:
     """
     À appeler tout en haut d'une page réservée aux personnes connectées ET
