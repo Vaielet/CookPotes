@@ -642,7 +642,7 @@ with st.container(key="recipe_grid"):
 st.divider()
 
 reference = st.text_input(
-    "📝 Référence",
+    "Référence (pour identifier facilement ton menu)",
     placeholder="ex. : Repas de la semaine du 10 mai",
     help="Apparaît en haut de la liste de courses et dans le titre du carnet de recettes.",
     value=_current_reference(),
