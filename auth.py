@@ -242,9 +242,6 @@ def render_sidebar_auth() -> None:
                 st.link_button(
                     "Se déconnecter", logout_url,
                     use_container_width=True,
-                    help="S'ouvre dans un nouvel onglet (Streamlit force ce "
-                         "comportement pour tout lien externe, afin de "
-                         "protéger la session active).",
                 )
             else:
                 # Repli si les secrets [auth] ne sont pas lisibles : au
