@@ -38,12 +38,13 @@ if st.session_state.get("_flash_user_msg"):
 st.subheader("Créer un·e utilisateur·rice")
 
 with st.form("_create_user_form", clear_on_submit=True):
-    cols = st.columns([2, 2, 1, 1, 1.4])
+    cols = st.columns([2, 2, 1, 1, 1.4, 1])
     new_username = cols[0].text_input("Identifiant")
     new_password = cols[1].text_input("Mot de passe", type="password")
     new_is_editor = cols[2].checkbox("Éditeur·rice", value=True)
     new_is_admin = cols[3].checkbox("Admin", value=False)
     new_can_manage_products = cols[4].checkbox("Gestion des produits", value=False)
+    new_is_approved = cols[5].checkbox("Validé", value=True, help="Un compte créé ici directement est considéré validé par défaut.")
     submitted = st.form_submit_button("➕ Créer le compte", type="primary")
 
 if submitted:
@@ -56,7 +57,7 @@ if submitted:
         try:
             db.create_user(
                 username, new_password, is_editor=new_is_editor, is_admin=new_is_admin,
-                can_manage_products=new_can_manage_products,
+                can_manage_products=new_can_manage_products, is_approved=new_is_approved,
             )
         except db.IntegrityError:
             st.error(f"L'identifiant « {username} » est déjà utilisé.")
@@ -76,8 +77,10 @@ users = db.list_users()
 
 for user in users:
     with st.container(border=True):
-        cols = st.columns([1.6, 1, 1, 1.4, 1, 1, 1])
+        cols = st.columns([1.4, 1, 1, 1.2, 0.9, 1, 1, 1])
         cols[0].markdown(f"**{user['username']}**")
+        if not user["is_approved"]:
+            cols[0].caption("⏳ En attente de validation")
 
         is_editor = cols[1].checkbox(
             "Éditeur·rice", value=user["is_editor"], key=f"editor_{user['id']}"
@@ -88,13 +91,19 @@ for user in users:
         can_manage_products = cols[3].checkbox(
             "Gestion produits", value=user["can_manage_products"], key=f"products_{user['id']}"
         )
+        is_approved = cols[4].checkbox(
+            "✅ Validé", value=user["is_approved"], key=f"approved_{user['id']}",
+            help="Un compte non validé est bloqué sur toute l'app, sauf "
+                 "« Accueil » et « Comment ça marche ? ».",
+        )
 
         role_changed = (
             (is_editor != user["is_editor"])
             or (is_admin != user["is_admin"])
             or (can_manage_products != user["can_manage_products"])
+            or (is_approved != user["is_approved"])
         )
-        if cols[4].button("💾 Appliquer", key=f"apply_{user['id']}", disabled=not role_changed):
+        if cols[5].button("💾 Appliquer", key=f"apply_{user['id']}", disabled=not role_changed):
             if user["is_admin"] and not is_admin and db.count_admins() <= 1:
                 st.error("Impossible de retirer le dernier compte administrateur.")
             else:
@@ -102,10 +111,11 @@ for user in users:
                     user["id"], is_editor=is_editor, is_admin=is_admin,
                     can_manage_products=can_manage_products,
                 )
+                db.set_user_approved(user["id"], is_approved)
                 st.session_state["_flash_user_msg"] = f"Rôle de « {user['username']} » mis à jour."
                 st.rerun()
 
-        with cols[5].popover("🔑 Mot de passe"):
+        with cols[6].popover("🔑 Mot de passe"):
             new_pw = st.text_input(
                 "Nouveau mot de passe", type="password", key=f"newpw_{user['id']}"
             )
@@ -118,7 +128,7 @@ for user in users:
                     st.rerun()
 
         delete_disabled = user["is_admin"] and db.count_admins() <= 1
-        if cols[6].button(
+        if cols[7].button(
             "🗑️ Supprimer", key=f"deluser_{user['id']}", disabled=delete_disabled
         ):
             db.delete_user(user["id"])
@@ -127,4 +137,4 @@ for user in users:
             st.session_state["_flash_user_msg"] = f"Compte « {user['username']} » supprimé."
             st.rerun()
         if delete_disabled:
-            cols[6].caption("Dernier admin")
+            cols[7].caption("Dernier admin")

@@ -28,7 +28,7 @@ db.init_db()
 
 #common.header_logo()
 
-auth.render_sidebar_auth()  # affichage informatif ; cette page reste accessible sans connexion
+auth.require_login()  # accès restreint aux comptes connectés ET validés (voir auth.APPROVAL_PENDING_MESSAGE)
 
 recipes = db.get_all_recipes()
 
