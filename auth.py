@@ -70,6 +70,10 @@ import streamlit as st
 
 import db
 
+# Lien affiché en bas de la sidebar (voir render_sidebar_auth) — REMPLACEZ
+# par l'URL de votre vrai formulaire (Google Forms, Tally, Typeform...).
+FEEDBACK_FORM_URL = "https://forms.gle/REMPLACEZ_PAR_VOTRE_FORMULAIRE"
+
 
 # ---------------------------------------------------------------------------
 # État de connexion
@@ -259,6 +263,19 @@ def render_sidebar_auth() -> None:
                 use_container_width=True, type="primary",
             ):
                 st.login()
+
+        # Toujours affiché (connecté·e ou non) : lien vers le formulaire
+        # d'évaluation de l'app, tout en bas de la sidebar. Placé ici plutôt
+        # que dans Accueil.py (où vit le reste du menu de navigation) : ce
+        # bloc s'exécute sur CHAQUE page (render_sidebar_auth est appelée
+        # par chaque page), donc c'est le seul endroit qui garantit que ce
+        # lien apparaît systématiquement après connexion/déconnexion, peu
+        # importe la page active.
+        st.divider()
+        st.link_button(
+            "📝 Donner mon avis sur l'appli", FEEDBACK_FORM_URL,
+            use_container_width=True,
+        )
 
 
 def require_editor(
