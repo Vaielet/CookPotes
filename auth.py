@@ -72,7 +72,7 @@ import db
 
 # Lien affiché en bas de la sidebar (voir render_sidebar_auth) — REMPLACEZ
 # par l'URL de votre vrai formulaire (Google Forms, Tally, Typeform...).
-FEEDBACK_FORM_URL = "https://framaforms.org/cookpotes-beta-test-1789234672"
+FEEDBACK_FORM_URL = "https://framaforms.org/cookpotes-avis-sur-lapp-1789234672"
 
 
 # ---------------------------------------------------------------------------
