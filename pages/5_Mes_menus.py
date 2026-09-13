@@ -432,6 +432,11 @@ if merged_diff:
             "kind": "added",
             "text": f"🆕 **{name.capitalize()}** — nouvel ingrédient, absent de ta liste initiale "
                     f"({common.format_quantity(qty)} {unit}).",
+            # Nécessaires pour le bouton "Ajouter à ma liste" plus bas :
+            # la vraie ligne formatée (avec TOUTES les unités actuelles de
+            # cet ingrédient, pas seulement celle-ci) et son rayon.
+            "category": current_shopping_list.categories.get(name, common.DEFAULT_CATEGORY),
+            "label": current_line_by_name.get(name, f"{name.capitalize()} : {common.format_quantity(qty)} {unit}"),
         }
     for name, qty, unit in merged_diff["removed"]:
         merged_warnings[name] = {
@@ -516,16 +521,39 @@ with st.expander("🛒 Liste de courses"):
             # cocher existante ici (jamais enregistré à l'origine), affiché
             # séparément juste en dessous.
             warning = merged_warnings.get(item_name)
-            if warning and warning["kind"] != "added":
+            if warning and warning["kind"] == "removed":
+                # Cas typique d'un RENOMMAGE d'ingrédient (voir
+                # add_shopping_item) : impossible de savoir automatiquement
+                # que l'ancien et le nouveau nom désignent le même besoin —
+                # un bouton laisse la personne nettoyer elle-même l'ancien
+                # nom, une fois le nouveau ajouté (juste en dessous).
+                warn_cols = st.columns([4, 1.4])
+                warn_cols[0].caption(warning["text"])
+                if warn_cols[1].button(
+                    "🗑️ Retirer", key=f"remove_stale_{item['id']}", use_container_width=True,
+                ):
+                    db.remove_shopping_item(item["id"], user_id)
+                    st.rerun()
+            elif warning and warning["kind"] != "added":
                 st.caption(warning["text"])
 
-    new_ingredient_texts = [w["text"] for w in merged_warnings.values() if w["kind"] == "added"]
-    if new_ingredient_texts:
-        st.info(
-            "**Nouveaux ingrédients apparus dans une recette depuis l'enregistrement "
-            "de ce menu** (absents de la liste ci-dessus) :\n\n"
-            + "\n".join(f"- {t}" for t in new_ingredient_texts)
-        )
+    # Ingrédients tout nouveaux : jamais présents dans la liste enregistrée
+    # à l'origine, donc pas de case à cocher existante ici — le bouton
+    # l'ajoute réellement (avec une vraie case persistée en base), plutôt
+    # que de rester une simple note qu'on ne peut jamais cocher. Cas
+    # typique : un ingrédient renommé (l'ancien nom apparaît ci-dessus
+    # avec un bouton "Retirer", le nouveau ici avec "Ajouter à ma liste").
+    new_ingredients = [(name, w) for name, w in merged_warnings.items() if w["kind"] == "added"]
+    if new_ingredients:
+        st.info("**Nouveaux ingrédients apparus dans une recette depuis l'enregistrement de ce menu :**")
+        for name, w in new_ingredients:
+            new_cols = st.columns([4, 2])
+            new_cols[0].markdown(w["text"])
+            if new_cols[1].button(
+                "➕ Ajouter à ma liste", key=f"add_new_ing_{selected_id}_{name}", use_container_width=True,
+            ):
+                db.add_shopping_item(selected_id, user_id, w["category"], w["label"])
+                st.rerun()
 
 
 # ---------------------------------------------------------------------------
