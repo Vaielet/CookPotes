@@ -34,9 +34,6 @@ if st.session_state.get("_flash_user_msg"):
 # Liste des utilisateurs existants
 # ---------------------------------------------------------------------------
 
-st.divider()
-st.subheader("Comptes existants")
-
 users = db.list_users()
 
 for user in users:
