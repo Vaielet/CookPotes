@@ -254,7 +254,7 @@ if image_file is not None:
 
 st.subheader("Ingrédients")
 st.caption(
-    "Organisez les ingrédients en sections (ex : Plat, Sauce, "
+    "Organise les ingrédients en sections (ex : Plat, Sauce, "
     "Accompagnement). Les quantités indiquées correspondent au nombre de "
     "personnes de base ci-dessus."
 )
