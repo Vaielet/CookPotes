@@ -182,7 +182,7 @@ MAX_DISPLAYED = 100
 
 with tab_todo:
     if not unclassified:
-        st.success("Tous les produits sont classés, avec au moins un synonyme chacun. 🎉")
+        st.success("Tous les produits sont classés, avec au moins un synonyme chacun.")
     else:
         search_todo = st.text_input(
             "🔎 Filtrer par nom", key="search_todo", placeholder="ex : courgette",
