@@ -32,41 +32,6 @@ if st.session_state.get("_flash_user_msg"):
 
 
 # ---------------------------------------------------------------------------
-# Création d'un nouvel utilisateur
-# ---------------------------------------------------------------------------
-
-st.subheader("Créer un·e utilisateur·rice")
-
-with st.form("_create_user_form", clear_on_submit=True):
-    cols = st.columns([2, 2, 1, 1, 1.4, 1])
-    new_username = cols[0].text_input("Identifiant")
-    new_password = cols[1].text_input("Mot de passe", type="password")
-    new_is_editor = cols[2].checkbox("Éditeur·rice", value=True)
-    new_is_admin = cols[3].checkbox("Admin", value=False)
-    new_can_manage_products = cols[4].checkbox("Gestion des produits", value=False)
-    new_is_approved = cols[5].checkbox("Validé", value=True, help="Un compte créé ici directement est considéré validé par défaut.")
-    submitted = st.form_submit_button("➕ Créer le compte", type="primary")
-
-if submitted:
-    username = new_username.strip()
-    if not username or not new_password:
-        st.error("L'identifiant et le mot de passe sont obligatoires.")
-    elif len(new_password) < 6:
-        st.error("Le mot de passe doit contenir au moins 6 caractères.")
-    else:
-        try:
-            db.create_user(
-                username, new_password, is_editor=new_is_editor, is_admin=new_is_admin,
-                can_manage_products=new_can_manage_products, is_approved=new_is_approved,
-            )
-        except db.IntegrityError:
-            st.error(f"L'identifiant « {username} » est déjà utilisé.")
-        else:
-            st.session_state["_flash_user_msg"] = f"Compte « {username} » créé avec succès."
-            st.rerun()
-
-
-# ---------------------------------------------------------------------------
 # Liste des utilisateurs existants
 # ---------------------------------------------------------------------------
 
