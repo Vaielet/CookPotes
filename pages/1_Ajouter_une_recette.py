@@ -321,7 +321,7 @@ for sec in st.session_state.new_recipe_sections:
             sec["rows"].append(_new_row())
             st.rerun()
 
-if st.button("+ Ajouter une section (ex : Sauce, Accompagnement)"):
+if st.button("+ Ajouter une section (ex : sauce, accompagnement)"):
     st.session_state.new_recipe_sections.append(_new_section(""))
     st.rerun()
 
