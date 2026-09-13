@@ -1741,6 +1741,75 @@ def set_shopping_item_checked(item_id: int, user_id: int, checked: bool) -> None
     _clear_saved_list_caches()
 
 
+def add_shopping_item(list_id: int, user_id: int, category: str, label: str) -> int | None:
+    """
+    Ajoute un nouvel article à une liste déjà enregistrée — sert à "adopter"
+    un ingrédient apparu dans une recette depuis l'enregistrement du menu
+    (typiquement un renommage : l'ancien nom ressort comme "retiré", le
+    nouveau comme "ajouté" — voir merged_diff côté page — sans lien
+    automatique possible entre les deux, faute de savoir qu'il s'agit du
+    même besoin). Même logique d'accès que set_shopping_item_checked
+    (propriétaire ou personne avec qui la liste est partagée). Renvoie
+    l'id du nouvel article, ou None si `user_id` n'a pas accès à cette
+    liste (rien n'est inséré dans ce cas).
+    """
+    with get_conn() as conn:
+        has_access = conn.execute(
+            text("""
+                SELECT 1 FROM saved_shopping_lists WHERE id = :list_id AND user_id = :user_id
+                UNION
+                SELECT 1 FROM saved_shopping_list_shares WHERE list_id = :list_id AND user_id = :user_id
+            """),
+            {"list_id": list_id, "user_id": user_id},
+        ).first() is not None
+        if not has_access:
+            return None
+
+        next_position = conn.execute(
+            text("SELECT COALESCE(MAX(position), -1) + 1 FROM saved_shopping_list_items WHERE list_id = :list_id"),
+            {"list_id": list_id},
+        ).scalar()
+
+        new_id = conn.execute(
+            text("""
+                INSERT INTO saved_shopping_list_items (list_id, category, label, checked, position)
+                VALUES (:list_id, :category, :label, FALSE, :position)
+                RETURNING id
+            """),
+            {"list_id": list_id, "category": category, "label": label, "position": next_position},
+        ).scalar()
+
+    _clear_saved_list_caches()
+    return new_id
+
+
+def remove_shopping_item(item_id: int, user_id: int) -> bool:
+    """
+    Retire un article devenu inutile d'une liste enregistrée (typiquement
+    un ingrédient retiré d'une recette depuis l'enregistrement du menu, ou
+    l'ancien nom lors d'un renommage — voir add_shopping_item). Même
+    logique d'accès que set_shopping_item_checked. Renvoie True si un
+    article a bien été supprimé.
+    """
+    with get_conn() as conn:
+        result = conn.execute(
+            text("""
+                DELETE FROM saved_shopping_list_items
+                WHERE id = :item_id
+                  AND list_id IN (
+                        SELECT id FROM saved_shopping_lists WHERE user_id = :user_id
+                        UNION
+                        SELECT list_id FROM saved_shopping_list_shares WHERE user_id = :user_id
+                  )
+            """),
+            {"item_id": item_id, "user_id": user_id},
+        )
+        deleted = result.rowcount > 0
+    if deleted:
+        _clear_saved_list_caches()
+    return deleted
+
+
 def delete_saved_list(list_id: int, user_id: int) -> None:
     """Supprime une liste enregistrée — vérifie que `user_id` en est bien le·la propriétaire.
     Les partages associés disparaissent automatiquement (ON DELETE CASCADE)."""
