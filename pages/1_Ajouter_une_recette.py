@@ -33,7 +33,7 @@ auth.require_editor()
 
 common.icon_title("Ajouter une recette", "ajouter_une_recette.png", "🍳")
 st.caption(
-    "Encode une nouvelle recette. Les nouvelles recettes sont enregistrés dans la base "
+    "Encode une nouvelle recette. Les nouvelles recettes sont enregistrées dans la base "
     "de données et disponibles pour tou·tes les CookPotes"
     " immédiatement sur la page « Composer mon menu »."
 )
