@@ -407,8 +407,21 @@ st.divider()
 
 save_label = "💾 Enregistrer les modifications" if editing else "💾 Enregistrer la recette"
 
-if st.button(save_label, type="primary"):
-    st.session_state["_pending_confirm_save"] = True
+if editing:
+    if st.button(save_label, type="primary"):
+        st.session_state["_pending_confirm_save"] = True
+else:
+    # Le bouton "Réinitialiser" n'a de sens qu'en mode AJOUT : en édition,
+    # il existe déjà un moyen de revenir en arrière sans rien perdre
+    # (revenir à la liste des recettes sans enregistrer), alors qu'ici on
+    # veut explicitement pouvoir repartir d'un formulaire vierge sans
+    # naviguer ailleurs.
+    save_col, reset_col = st.columns([3, 1])
+    if save_col.button(save_label, type="primary", use_container_width=True):
+        st.session_state["_pending_confirm_save"] = True
+    if reset_col.button("🔄 Réinitialiser", use_container_width=True):
+        _blank_form_state()
+        st.rerun()
 
 # Cette partie (validation, puis confirmation, puis enregistrement réel)
 # est traitée en dehors du `if` du bouton ci-dessus, à partir d'un
