@@ -335,7 +335,7 @@ instructions_text = st.text_area(
     "Une étape par ligne, sans numérotation",
     key=_gkey("new_recipe_instructions"),
     height=150,
-    placeholder="Épluchez et coupez les légumes...\nFaites revenir dans l'huile d'olive...\n...",
+    placeholder="Épluche et coupe les légumes...\nFais revenir dans l'huile d'olive...\n...",
 )
 
 
