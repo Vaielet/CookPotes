@@ -100,4 +100,4 @@ for user in users:
             st.session_state["_flash_user_msg"] = f"Compte « {user['username']} » supprimé."
             st.rerun()
         if delete_disabled:
-            action_cols[2].caption("Dernier admin")
+            action_cols[1].caption("Dernier admin")
