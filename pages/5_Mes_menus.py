@@ -122,10 +122,10 @@ def _load_list_detail(list_id: int, user_id: int) -> dict | None:
 common.icon_title("Mes menus", "mes_menus.png", "📋")
 st.caption(
     "Retrouve ici les menus enregistrés depuis « Composer mon menu ». "
-    "Coche les articles au fur et à mesure de tes courses, et ouvre une "
+    "Affiche la liste de courses et coche les articles que tu as en stock ou que tu achètes. Ouvre une "
     "recette pour l'avoir sous les yeux en cuisinant. Partage ton menu avec ton/ta "
     "co-équipier·e qui pourra ainsi voir la liste de courses, cocher ses achats – "
-    "qui se synchroniseront sur vos deux comptes – et voir les recettes."
+    "qui se synchroniseront sur vos deux comptes – et afficher les recettes."
 )
 
 user_id = auth.current_user_id()
