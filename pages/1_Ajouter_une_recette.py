@@ -34,7 +34,7 @@ auth.require_editor()
 common.icon_title("Ajouter une recette", "ajouter_une_recette.png", "🍳")
 st.caption(
     "Encode une nouvelle recette. Les nouvelles recettes sont enregistrés dans la base "
-    "de données et disponibles pour tou·tes les utilisateur·rices"
+    "de données et disponibles pour tou·tes les CookPotes"
     " immédiatement sur la page « Composer mon menu »."
 )
 st.badge("Rappelle-toi, tu es le contrôle qualité : ne partage "
@@ -240,8 +240,7 @@ if editing and existing_image:
     st.image(common.get_recipe_image(recipe_name or "Recette", existing_image), width=250)
 
 image_file = st.file_uploader(
-    "Nouvelle photo (optionnel — laissez vide pour "
-    + ("conserver la photo actuelle" if editing and existing_image else "générer une image de remplacement automatique"),
+    + ("Modifier la photo actuelle" if editing and existing_image else "Ajouter une photo")
     type=["jpg", "jpeg", "png"],
     key=st.session_state["_uploader_key"],
 )
