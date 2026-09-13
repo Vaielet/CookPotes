@@ -533,6 +533,10 @@ with st.expander("🛒 Liste de courses"):
                     "🗑️ Retirer", key=f"remove_stale_{item['id']}", use_container_width=True,
                 ):
                     db.remove_shopping_item(item["id"], user_id)
+                    # Sans ça, la page réaffiche la copie mise en cache
+                    # (voir _load_list_detail) — l'article retiré
+                    # semblerait donc toujours présent après le rerun.
+                    st.session_state.pop("_list_detail_cache", None)
                     st.rerun()
             elif warning and warning["kind"] != "added":
                 st.caption(warning["text"])
@@ -543,7 +547,19 @@ with st.expander("🛒 Liste de courses"):
     # que de rester une simple note qu'on ne peut jamais cocher. Cas
     # typique : un ingrédient renommé (l'ancien nom apparaît ci-dessus
     # avec un bouton "Retirer", le nouveau ici avec "Ajouter à ma liste").
-    new_ingredients = [(name, w) for name, w in merged_warnings.items() if w["kind"] == "added"]
+    #
+    # Exclut les noms déjà présents dans detail["items"] : sans ça, un
+    # ingrédient resterait affiché ici comme "nouveau" indéfiniment même
+    # après avoir été ajouté (la comparaison se fait toujours contre
+    # l'instantané ORIGINAL, jamais mis à jour) — cliquer plusieurs fois
+    # sur "Ajouter à ma liste" créerait alors des doublons à chaque clic.
+    existing_item_names = {
+        it["label"].split(" : ", 1)[0].strip().lower() for it in detail["items"]
+    }
+    new_ingredients = [
+        (name, w) for name, w in merged_warnings.items()
+        if w["kind"] == "added" and name not in existing_item_names
+    ]
     if new_ingredients:
         st.info("**Nouveaux ingrédients apparus dans une recette depuis l'enregistrement de ce menu :**")
         for name, w in new_ingredients:
@@ -553,6 +569,12 @@ with st.expander("🛒 Liste de courses"):
                 "➕ Ajouter à ma liste", key=f"add_new_ing_{selected_id}_{name}", use_container_width=True,
             ):
                 db.add_shopping_item(selected_id, user_id, w["category"], w["label"])
+                # Même raison que pour "Retirer" ci-dessus : sans ça, le
+                # nouvel article resterait invisible dans la liste
+                # principale après le rerun (copie en cache périmée), et
+                # continuerait donc à apparaître ici comme "nouveau" —
+                # cliquable à nouveau, donc ajouté en double.
+                st.session_state.pop("_list_detail_cache", None)
                 st.rerun()
 
 
