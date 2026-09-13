@@ -444,7 +444,10 @@ if st.session_state.get("_pending_confirm_save"):
             sections.setdefault(section_name, []).extend(valid_rows)
 
     if not sections:
-        errors.append("Ajoutez au moins un ingrédient avec un nom et une quantité positive.")
+        errors.append("Tu as oublié d'ajouter les ingrédients.")
+
+    if not instructions_text:
+        errors.append("Tu as oublié d'ajouter les insctructions.")
 
     if editing and not auth.is_admin():
         errors.append("La modification d'une recette est réservée aux administrateurs.")
