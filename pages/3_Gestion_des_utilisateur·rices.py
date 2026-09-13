@@ -21,8 +21,7 @@ auth.require_admin()
 
 common.icon_title("Gestion des utilisateur·rices", "gestion_utilisateurs.png", "👤")
 st.caption(
-    "Crée des comptes et attribue le statut « éditeur·rice » aux personnes "
-    "autorisées à ajouter ou modifier des recettes. Seul·es les "
+    "Seul·es les "
     "administrateur·rices voient cette page."
 )
 
@@ -72,7 +71,7 @@ for user in users:
 
         # 2e ligne : les actions — même logique, chacune dans sa propre
         # colonne plus large plutôt que serrées à côté des cases à cocher.
-        action_cols = st.columns(3)
+        action_cols = st.columns(2)
         if action_cols[0].button(
             "💾 Appliquer", key=f"apply_{user['id']}", disabled=not role_changed,
             use_container_width=True,
@@ -88,20 +87,10 @@ for user in users:
                 st.session_state["_flash_user_msg"] = f"Rôle de « {user['username']} » mis à jour."
                 st.rerun()
 
-        with action_cols[1].popover("🔑 Mot de passe", use_container_width=True):
-            new_pw = st.text_input(
-                "Nouveau mot de passe", type="password", key=f"newpw_{user['id']}"
-            )
-            if st.button("Changer", key=f"changepw_{user['id']}"):
-                if len(new_pw) < 6:
-                    st.error("Le mot de passe doit contenir au moins 6 caractères.")
-                else:
-                    db.set_user_password(user["id"], new_pw)
-                    st.session_state["_flash_user_msg"] = f"Mot de passe de « {user['username']} » modifié."
-                    st.rerun()
+        
 
         delete_disabled = user["is_admin"] and db.count_admins() <= 1
-        if action_cols[2].button(
+        if action_cols[1].button(
             "🗑️ Supprimer", key=f"deluser_{user['id']}", disabled=delete_disabled,
             use_container_width=True,
         ):
