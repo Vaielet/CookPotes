@@ -188,7 +188,7 @@ st.caption(counter_caption)
 
 if not lists_summary:
     st.info(
-        "Aucune menu enregistré pour l'instant. Va sur « Composer "
+        "Aucun menu enregistré pour l'instant. Va sur « Composer "
         "mon menu », choisis tes recettes, appuie sur le bouton « Générer "
         "la liste de courses et le carnet de recette », puis clique sur "
         "« 💾 Enregistrer dans mon compte »."
