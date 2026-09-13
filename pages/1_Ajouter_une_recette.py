@@ -240,7 +240,7 @@ if editing and existing_image:
     st.image(common.get_recipe_image(recipe_name or "Recette", existing_image), width=250)
 
 image_file = st.file_uploader(
-    + ("Modifier la photo actuelle" if editing and existing_image else "Ajouter une photo"),
+    ""+ ("Modifier la photo actuelle" if editing and existing_image else "Ajouter une photo"),
     type=["jpg", "jpeg", "png"],
     key=st.session_state["_uploader_key"],
 )
