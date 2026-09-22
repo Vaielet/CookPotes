@@ -658,6 +658,18 @@ with st.container(key="mes_menus_recipe_grid"):
                     )
                 st.caption(f"{rs['people']} personne(s)")
 
+                if not rs["is_deleted"]:
+                    current_recipe = all_recipes_full[rs["current_name"]]
+                    prep_time = current_recipe.get("prep_time_minutes")
+                    cook_time = current_recipe.get("cook_time_minutes")
+                    if prep_time or cook_time:
+                        time_parts = []
+                        if prep_time:
+                            time_parts.append(f"⏱️ {prep_time} min")
+                        if cook_time:
+                            time_parts.append(f"🔥 {cook_time} min")
+                        st.caption("  •  ".join(time_parts))
+
                 if rs["is_deleted"]:
                     st.caption("⚠️ Cette recette a été supprimée depuis.")
                     continue
