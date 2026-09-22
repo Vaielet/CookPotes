@@ -35,6 +35,16 @@ def _recipe_dialog(name: str, people: int, recipe: dict) -> None:
     st.markdown(f"## {name}")
     st.caption(f"Pour {people} personne(s)")
 
+    prep_time = recipe.get("prep_time_minutes")
+    cook_time = recipe.get("cook_time_minutes")
+    if prep_time or cook_time:
+        time_parts = []
+        if prep_time:
+            time_parts.append(f"⏱️ Préparation : {prep_time} min")
+        if cook_time:
+            time_parts.append(f"🔥 Cuisson : {cook_time} min")
+        st.caption("  •  ".join(time_parts))
+
     # Vignette (pas la photo en pleine largeur) : on réutilise le même rendu
     # à taille fixe que les cartes recette de la page « Générer ma liste ».
     thumb_col, _spacer_col = st.columns([1, 2])
